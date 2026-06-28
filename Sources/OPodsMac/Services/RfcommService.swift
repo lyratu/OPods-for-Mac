@@ -333,8 +333,10 @@ final class RfcommService: NSObject, IOBluetoothRFCOMMChannelDelegate, @unchecke
             for frame in frames {
                 OppoFrameReducer.apply(frame, to: &self.snapshot, capabilities: self.capabilities)
             }
-            self.lastEmittedSnapshot = self.snapshot
-            self.emit(.snapshot(self.snapshot))
+            if self.snapshot != self.lastEmittedSnapshot {
+                self.lastEmittedSnapshot = self.snapshot
+                self.emit(.snapshot(self.snapshot))
+            }
         }
     }
 
