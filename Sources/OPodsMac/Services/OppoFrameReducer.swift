@@ -36,9 +36,10 @@ enum OppoFrameReducer {
         for index in 0..<(payload.count - 3) {
             guard payload[index] == 0x01, payload[index + 1] == 0x01 else { continue }
             let key = AncResponseKey(first: payload[index + 2], second: payload[index + 3])
-            let mapped = capabilities.ancModeMap[key] ?? OppoProtocol.AncValues[key]
-            if let mapped {
-                snapshot.ancMode = capabilities.isLegacyAnc ? OppoProtocol.LegacyAncSwap(mapped) : mapped
+            let mapped = capabilities.ancModeMap[key]
+                ?? (capabilities.ancModeMap.isEmpty ? OppoProtocol.AncValues[key] : nil)
+            if let mapped, mapped != .unknown {
+                snapshot.ancMode = mapped
             }
         }
     }

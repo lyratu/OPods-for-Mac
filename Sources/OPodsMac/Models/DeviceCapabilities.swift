@@ -213,7 +213,14 @@ final class DeviceCatalog {
             guard let type = mode.modeType else { continue }
             guard let children = mode.childrenMode, !children.isEmpty else {
                 if let index = mode.protocolIndex {
-                    map[AncResponseKey(first: UInt8(clamping: type), second: UInt8(clamping: index))] = .unknown
+                    let mode: AncMode
+                    switch type {
+                    case 1:  mode = .off
+                    case 2:  mode = .transparency
+                    case 10: mode = .adaptive
+                    default: mode = .smart
+                    }
+                    map[AncResponseKey(first: UInt8(clamping: type), second: UInt8(clamping: index))] = mode
                 }
                 continue
             }

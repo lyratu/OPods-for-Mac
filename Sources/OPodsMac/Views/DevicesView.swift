@@ -4,7 +4,7 @@ struct DevicesView: View {
     @EnvironmentObject private var store: PodsStore
 
     var body: some View {
-        HSplitView {
+        HStack(alignment: .top, spacing: 0) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     Text(store.text("pairedBluetoothDevices"))
@@ -41,7 +41,9 @@ struct DevicesView: View {
                 }
             }
             .padding(20)
-            .frame(minWidth: 360)
+            .frame(minWidth: 250, maxWidth: .infinity)
+
+            Divider()
 
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
@@ -82,7 +84,7 @@ struct DevicesView: View {
                 }
             }
             .padding(20)
-            .frame(minWidth: 360)
+            .frame(minWidth: 250, maxWidth: .infinity)
         }
     }
 }

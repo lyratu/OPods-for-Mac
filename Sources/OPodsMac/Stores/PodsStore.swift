@@ -51,6 +51,10 @@ final class PodsStore: ObservableObject {
     private var statusMessageKey = "status.initial"
     private var statusMessageArgument: String?
     private var gameModeUserSetAt = Date.distantPast
+    private var ancUserSetAt = Date.distantPast
+    private var spatialSoundUserSetAt = Date.distantPast
+    private var dualDeviceUserSetAt = Date.distantPast
+    private var eqPresetUserSetAt = Date.distantPast
 
     init() {
         let initialLanguage = AppLanguage(rawValue: UserDefaults.standard.string(forKey: Self.languageKey) ?? "") ?? .english
@@ -139,11 +143,13 @@ final class PodsStore: ObservableObject {
 
     func sendAnc(_ mode: AncMode) {
         guard availableAncControlModes.contains(mode) else { return }
+        ancUserSetAt = Date()
         snapshot.ancMode = mode
-        service.sendAnc(mode)
+        service.sendAnc(mode, capabilities: effectiveCapabilities)
     }
 
     func sendSpatialSound(_ enabled: Bool) {
+        spatialSoundUserSetAt = Date()
         snapshot.spatialSound = enabled
         service.sendSpatialSound(enabled)
     }
@@ -154,6 +160,7 @@ final class PodsStore: ObservableObject {
     }
 
     func sendDualDevice(_ enabled: Bool) {
+        dualDeviceUserSetAt = Date()
         snapshot.dualDevice = enabled
         service.sendDualDevice(enabled)
     }
@@ -165,6 +172,7 @@ final class PodsStore: ObservableObject {
     }
 
     func sendEqPreset(_ name: String) {
+        eqPresetUserSetAt = Date()
         snapshot.eqPreset = name
         service.sendEqPreset(name, capabilities: effectiveCapabilities)
     }
@@ -189,6 +197,21 @@ final class PodsStore: ObservableObject {
             var next = snapshot
             if Date().timeIntervalSince(gameModeUserSetAt) < 3 {
                 next.gameMode = self.snapshot.gameMode
+            }
+            if Date().timeIntervalSince(ancUserSetAt) < 3 {
+                next.ancMode = self.snapshot.ancMode
+            }
+            if next.ancMode == .unknown {
+                next.ancMode = self.snapshot.ancMode
+            }
+            if Date().timeIntervalSince(spatialSoundUserSetAt) < 3 {
+                next.spatialSound = self.snapshot.spatialSound
+            }
+            if Date().timeIntervalSince(dualDeviceUserSetAt) < 3 {
+                next.dualDevice = self.snapshot.dualDevice
+            }
+            if Date().timeIntervalSince(eqPresetUserSetAt) < 3 {
+                next.eqPreset = self.snapshot.eqPreset
             }
             self.snapshot = next
             phase = snapshot.connected ? .connected : .disconnected

@@ -54,6 +54,8 @@ enum OppoProtocol {
     static let AncAdaptive: [UInt8] = [0x01, 0x01, 0x00, 0x08]
     static let AncTransparency: [UInt8] = [0x01, 0x01, 0x04]
 
+    static let AncOffLegacy: [UInt8] = [0x01, 0x01, 0x08]
+
     static let AncValues: [AncResponseKey: AncMode] = [
         AncResponseKey(first: 8, second: 0): .off,
         AncResponseKey(first: 2, second: 0): .smart,
@@ -106,33 +108,47 @@ enum OppoProtocol {
 
     static func LegacyAncSwap(_ mode: AncMode) -> AncMode {
         switch mode {
-        case .smart, .light, .medium, .deep:
-            .transparency
-        case .transparency:
+        case .off:
             .smart
+        case .smart, .light, .medium, .deep:
+            .off
         default:
             mode
         }
     }
 
-    static func PktAncMode(_ mode: AncMode) -> [UInt8] {
+    static func PktAncMode(_ mode: AncMode, isLegacy: Bool = false) -> [UInt8] {
+        if isLegacy {
+            switch mode {
+            case .off:
+                return BuildPacket(CmdAnc, AncOffLegacy)
+            case .smart, .light, .medium, .deep:
+                return BuildPacket(CmdAnc, AncOff)
+            case .transparency:
+                return BuildPacket(CmdAnc, AncTransparency)
+            case .adaptive:
+                return BuildPacket(CmdAnc, AncAdaptive)
+            case .unknown:
+                return PktBattery
+            }
+        }
         switch mode {
         case .off:
-            BuildPacket(CmdAnc, AncOff)
+            return BuildPacket(CmdAnc, AncOff)
         case .smart:
-            BuildPacket(CmdAnc, AncSmart)
+            return BuildPacket(CmdAnc, AncSmart)
         case .light:
-            BuildPacket(CmdAnc, AncLight)
+            return BuildPacket(CmdAnc, AncLight)
         case .medium:
-            BuildPacket(CmdAnc, AncMedium)
+            return BuildPacket(CmdAnc, AncMedium)
         case .deep:
-            BuildPacket(CmdAnc, AncDeep)
+            return BuildPacket(CmdAnc, AncDeep)
         case .adaptive:
-            BuildPacket(CmdAnc, AncAdaptive)
+            return BuildPacket(CmdAnc, AncAdaptive)
         case .transparency:
-            BuildPacket(CmdAnc, AncTransparency)
+            return BuildPacket(CmdAnc, AncTransparency)
         case .unknown:
-            PktBattery
+            return PktBattery
         }
     }
 

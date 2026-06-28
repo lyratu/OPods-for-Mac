@@ -80,9 +80,8 @@ final class RfcommService: NSObject, IOBluetoothRFCOMMChannelDelegate, @unchecke
         }
     }
 
-    func sendAnc(_ mode: AncMode) {
-        let requested = capabilities.isLegacyAnc ? OppoProtocol.LegacyAncSwap(mode) : mode
-        send(OppoProtocol.PktAncMode(requested))
+    func sendAnc(_ mode: AncMode, capabilities: DeviceCapabilities) {
+        send(OppoProtocol.PktAncMode(mode, isLegacy: capabilities.isLegacyAnc))
     }
 
     func sendSpatialSound(_ enabled: Bool) {

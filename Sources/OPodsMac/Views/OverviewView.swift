@@ -9,6 +9,7 @@ struct OverviewView: View {
                 connectionHeader
                 BatteryOverview()
                 WearingOverview()
+                CapabilitiesOverview()
                 QuickControlsView()
             }
             .padding(24)
@@ -176,5 +177,46 @@ struct EarbudAssetImage: View {
             }
         }
         .accessibilityHidden(true)
+    }
+}
+
+struct CapabilitiesOverview: View {
+    @EnvironmentObject private var store: PodsStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(store.text("capabilities"))
+                .font(.headline)
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
+                CapabilityBadge(title: store.text("noiseControl"), enabled: !store.effectiveCapabilities.availableAncMainModes.isEmpty)
+                CapabilityBadge(title: store.text("anc.level"), enabled: store.effectiveCapabilities.hasAncSubModes)
+                CapabilityBadge(title: store.text("adaptiveAnc"), enabled: store.effectiveCapabilities.hasAdaptiveAnc)
+                CapabilityBadge(title: store.text("spatialSound"), enabled: store.effectiveCapabilities.hasSpatialSound)
+                CapabilityBadge(title: store.text("spatialAudioModes"), enabled: store.effectiveCapabilities.hasSpatialAudio)
+                CapabilityBadge(title: store.text("dualDevice"), enabled: store.effectiveCapabilities.hasDualDevice)
+            }
+        }
+    }
+}
+
+private struct CapabilityBadge: View {
+    var title: String
+    var enabled: Bool
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: enabled ? "checkmark.circle.fill" : "minus.circle")
+                .foregroundStyle(enabled ? .green : .secondary)
+                .font(.system(size: 12))
+            Text(title)
+                .font(.system(size: 11))
+                .foregroundStyle(enabled ? .primary : .secondary)
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 7))
     }
 }

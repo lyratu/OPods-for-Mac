@@ -37,29 +37,8 @@ struct SettingsView: View {
             Section(store.text("commandCompatibility")) {
                 Toggle(store.text("legacyGameFeature"), isOn: $store.gameModeCompatible)
             }
-
-            Section(store.text("capabilities")) {
-                CapabilityRow(title: store.text("noiseControl"), enabled: !store.effectiveCapabilities.availableAncMainModes.isEmpty)
-                CapabilityRow(title: store.text("anc.level"), enabled: store.effectiveCapabilities.hasAncSubModes)
-                CapabilityRow(title: store.text("adaptiveAnc"), enabled: store.effectiveCapabilities.hasAdaptiveAnc)
-                CapabilityRow(title: store.text("spatialSound"), enabled: store.effectiveCapabilities.hasSpatialSound)
-                CapabilityRow(title: store.text("spatialAudioModes"), enabled: store.effectiveCapabilities.hasSpatialAudio)
-                CapabilityRow(title: store.text("dualDevice"), enabled: store.effectiveCapabilities.hasDualDevice)
-            }
         }
         .formStyle(.grouped)
         .padding(20)
-    }
-}
-
-struct CapabilityRow: View {
-    var title: String
-    var enabled: Bool
-
-    var body: some View {
-        LabeledContent(title) {
-            Image(systemName: enabled ? "checkmark.circle.fill" : "minus.circle")
-                .foregroundStyle(enabled ? .green : .secondary)
-        }
     }
 }

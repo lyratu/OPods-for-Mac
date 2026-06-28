@@ -64,6 +64,7 @@ struct ContentView: View {
                 }
             }
         }
+        .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 300)
     }
 }
 

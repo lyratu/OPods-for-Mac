@@ -7,7 +7,7 @@ struct OPodsMacApp: App {
     @StateObject private var store = PodsStore()
 
     var body: some Scene {
-        WindowGroup("OPods for Mac", id: "main") {
+        Window("OPods for Mac", id: "main") {
             ContentView()
                 .environmentObject(store)
                 .frame(minWidth: 840, minHeight: 560)
@@ -37,7 +37,7 @@ struct OPodsMacApp: App {
         } label: {
             Label(store.menuBarTitle, systemImage: store.snapshot.connected ? "earbuds" : "earbuds.case")
         }
-        .menuBarExtraStyle(.menu)
+        .menuBarExtraStyle(.window)
     }
 }
 

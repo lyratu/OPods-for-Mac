@@ -6,144 +6,403 @@ struct MenuBarStatusView: View {
     @EnvironmentObject private var store: PodsStore
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Label(headerTitle, systemImage: store.snapshot.connected ? "earbuds" : "earbuds.case")
-                .font(.headline)
-
-            Text(store.snapshot.connected ? store.text("connected") : store.text("disconnected"))
-                .font(.caption)
-                .foregroundStyle(store.snapshot.connected ? .green : .secondary)
-
-            batteryRows
+        VStack(spacing: 0) {
+            // ── Header ──
+            headerSection
+                .padding(.horizontal, 14)
+                .padding(.top, 10)
+                .padding(.bottom, 8)
 
             if store.snapshot.connected {
-                Divider()
-                ancMenuSection
-                featureMenuSection
+                Divider().padding(.horizontal, 14)
+
+                // ── Battery Cards ──
+                batterySection
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+
+                // ── ANC Pills ──
+                if !store.availableAncControlModes.isEmpty {
+                    Divider().padding(.horizontal, 14)
+                    ancSection
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                }
+
+                // ── EQ Pills ──
+                if store.effectiveCapabilities.eqPresets.count > 1 {
+                    Divider().padding(.horizontal, 14)
+                    eqSection
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                }
+
+                // ── Quick Toggles ──
+                if hasAnyToggles {
+                    Divider().padding(.horizontal, 14)
+                    featuresSection
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                }
+            } else {
+                disconnectedHint
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 20)
             }
 
-            Divider()
+            Divider().padding(.horizontal, 14)
 
-            Button(store.snapshot.connected ? store.text("disconnect") : store.text("connect")) {
-                store.snapshot.connected ? store.disconnect() : store.connectAutomatically()
+            // ── Actions ──
+            actionsSection
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+        }
+        .frame(width: 278)
+    }
+
+    // MARK: - Header
+
+    private var headerSection: some View {
+        HStack(spacing: 10) {
+            Image(systemName: store.snapshot.connected ? "earbuds" : "earbuds.case")
+                .font(.system(size: 26))
+                .foregroundStyle(store.snapshot.connected ? .green : .secondary)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(headerTitle)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(store.snapshot.connected ? Color.green : Color.secondary)
+                        .frame(width: 6, height: 6)
+                    Text(store.snapshot.connected
+                        ? store.text("connected")
+                        : store.text("disconnected"))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
             }
 
-            Button(store.text("refreshDevices")) {
+            Spacer()
+
+            Button {
                 store.refreshPairedDevices()
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(.secondary)
             }
+            .buttonStyle(.plain)
+            .help(store.text("refreshDevices"))
 
-            Button(store.text("showMainWindow")) {
-                showMainWindow()
-            }
-
-            Button(store.text("quit")) {
-                NSApp.terminate(nil)
+            if store.snapshot.connected {
+                Button {
+                    store.disconnect()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Button {
+                    store.connectAutomatically()
+                } label: {
+                    Image(systemName: "link.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundStyle(.blue)
+                }
+                .buttonStyle(.plain)
             }
         }
-        .frame(width: 240)
-        .padding(.vertical, 4)
     }
 
     private var headerTitle: String {
         guard store.snapshot.connected else { return "OPods" }
-        let modelName = store.effectiveCapabilities.modelName
-        return modelName == "Unknown" ? store.snapshot.connectedDeviceName : modelName
+        let name = store.effectiveCapabilities.modelName
+        return name == "Unknown" ? store.snapshot.connectedDeviceName : name
     }
 
-    private var batteryRows: some View {
-        ForEach(PodComponent.allCases) { component in
-            HStack {
+    // MARK: - Battery
+
+    private var batterySection: some View {
+        HStack(spacing: 8) {
+            ForEach(PodComponent.allCases) { component in
+                batteryCard(component: component)
+            }
+        }
+    }
+
+    private func batteryCard(component: PodComponent) -> some View {
+        let reading = store.snapshot.mergedBattery(for: component)
+        let level = Double(reading?.clippedLevel ?? 0) / 100.0
+
+        return VStack(spacing: 4) {
+            EarbudAssetImage(name: component.assetName)
+                .frame(width: 24, height: 24)
+
+            Text(reading.map { "\($0.clippedLevel)%" } ?? "--")
+                .font(.system(size: 16, weight: .bold, design: .monospaced))
+
+            HStack(spacing: 3) {
                 Text(component.title(language: store.language))
-                Spacer()
-                Text(store.snapshot.mergedBattery(for: component).map { "\($0.clippedLevel)%" } ?? "--")
-                    .monospacedDigit()
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                if reading?.charging == true {
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 7))
+                        .foregroundStyle(.green)
+                }
             }
         }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(
+            GeometryReader { geo in
+                ZStack(alignment: .bottom) {
+                    Color.primary.opacity(0.05)
+                    Color.green.opacity(0.30)
+                        .frame(height: geo.size.height * level)
+                }
+            }
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
-    @ViewBuilder
-    private var ancMenuSection: some View {
-        if store.availableAncControlModes.isEmpty {
-            EmptyView()
-        } else {
+    // MARK: - ANC
+
+    private var ancSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
             Text(store.text("noiseControl"))
-                .font(.caption)
+                .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.secondary)
+
+            ancPillsGrid
+        }
+    }
+
+    private var ancPillsGrid: some View {
+        HStack(spacing: 5) {
             ForEach(store.availableAncControlModes) { mode in
-                Button {
-                    store.sendAnc(mode)
-                } label: {
-                    Label(mode.title(language: store.language), systemImage: store.snapshot.ancMode == mode ? "checkmark.circle.fill" : "circle")
-                }
+                ancPill(mode: mode)
             }
         }
     }
 
-    @ViewBuilder
-    private var featureMenuSection: some View {
-        Divider()
-
+    private func ancPill(mode: AncMode) -> some View {
         Button {
-            store.sendGameMode(!store.snapshot.gameMode)
+            store.sendAnc(mode)
         } label: {
-            Label(store.text("gameMode"), systemImage: store.snapshot.gameMode ? "checkmark.circle.fill" : "circle")
+            Text(mode.title(language: store.language))
+                .font(.system(size: 11, weight: .medium))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+                .background(store.snapshot.ancMode == mode
+                    ? Color.accentColor
+                    : Color.primary.opacity(0.08))
+                .foregroundStyle(store.snapshot.ancMode == mode
+                    ? .white
+                    : .primary)
+                .clipShape(RoundedRectangle(cornerRadius: 7))
         }
+        .buttonStyle(.plain)
+    }
 
-        if store.effectiveCapabilities.hasSpatialSound {
-            Button {
-                store.sendSpatialSound(!store.snapshot.spatialSound)
-            } label: {
-                Label(store.text("spatialSound"), systemImage: store.snapshot.spatialSound ? "checkmark.circle.fill" : "circle")
+    // MARK: - Features
+
+    private var hasAnyToggles: Bool {
+        store.effectiveCapabilities.hasGameMode
+        || store.effectiveCapabilities.hasSpatialSound
+        || store.effectiveCapabilities.hasDualDevice
+    }
+
+    private var featuresSection: some View {
+        HStack(spacing: 5) {
+            featureChip(
+                icon: "gamecontroller",
+                title: store.text("gameMode"),
+                isOn: store.snapshot.gameMode,
+                action: { store.sendGameMode(!store.snapshot.gameMode) }
+            )
+
+            if store.effectiveCapabilities.hasSpatialSound {
+                featureChip(
+                    icon: "hifispeaker",
+                    title: store.text("spatialSound"),
+                    isOn: store.snapshot.spatialSound,
+                    action: { store.sendSpatialSound(!store.snapshot.spatialSound) }
+                )
             }
-        }
 
-        if store.effectiveCapabilities.hasSpatialAudio {
-            Menu(store.text("spatialAudio")) {
-                ForEach(SpatialAudioMode.allCases) { mode in
-                    Button {
-                        store.sendSpatialAudio(mode)
-                    } label: {
-                        Label(mode.title(language: store.language), systemImage: store.snapshot.spatialMode == mode ? "checkmark.circle.fill" : "circle")
-                    }
-                }
-            }
-        }
-
-        if store.effectiveCapabilities.hasDualDevice {
-            Button {
-                store.sendDualDevice(!store.snapshot.dualDevice)
-            } label: {
-                Label(store.text("dualDevice"), systemImage: store.snapshot.dualDevice ? "checkmark.circle.fill" : "circle")
-            }
-
-            Button {
-                store.refreshMultiConnectInfo()
-            } label: {
-                Label(store.text("dualDeviceList"), systemImage: "rectangle.connected.to.line.below")
-            }
-        }
-
-        if store.effectiveCapabilities.eqPresets.count > 1 {
-            Menu(store.text("eqPreset")) {
-                ForEach(store.effectiveCapabilities.eqPresets.keys.sorted(), id: \.self) { name in
-                    Button {
-                        store.sendEqPreset(name)
-                    } label: {
-                        Label(shortMenuTitle(name), systemImage: store.snapshot.eqPreset == name ? "checkmark.circle.fill" : "circle")
-                    }
-                }
+            if store.effectiveCapabilities.hasDualDevice {
+                featureChip(
+                    icon: "rectangle.connected.to.line.below",
+                    title: store.text("dualDevice"),
+                    isOn: store.snapshot.dualDevice,
+                    action: { store.sendDualDevice(!store.snapshot.dualDevice) }
+                )
             }
         }
     }
 
-    private func shortMenuTitle(_ value: String) -> String {
-        if value.count <= 30 { return value }
-        return String(value.prefix(29)) + "..."
+    private func featureChip(icon: String, title: String, isOn: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 10))
+                Text(title)
+                    .font(.system(size: 10, weight: .medium))
+            }
+            .padding(.vertical, 4)
+            .padding(.horizontal, 8)
+            .background(isOn ? Color.accentColor.opacity(0.15) : Color.primary.opacity(0.06))
+            .foregroundStyle(isOn ? Color.accentColor : .secondary)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
     }
+
+    // MARK: - Disconnected
+
+    private var disconnectedHint: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "earbuds.case")
+                .font(.system(size: 36))
+                .foregroundStyle(.secondary.opacity(0.5))
+            Text(store.text("pairHint"))
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - EQ
+
+    private var eqSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(store.text("eqPreset"))
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
+
+            eqPillsGrid
+        }
+    }
+
+    private var eqPillsGrid: some View {
+        let names = store.effectiveCapabilities.eqPresets.keys.sorted()
+        let current = store.snapshot.eqPreset.isEmpty
+            ? (names.first ?? "Default")
+            : store.snapshot.eqPreset
+
+        return HStack(spacing: 5) {
+            ForEach(names, id: \.self) { name in
+                Button {
+                    store.sendEqPreset(name)
+                } label: {
+                    Text(name)
+                        .font(.system(size: 11, weight: .medium))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 8)
+                        .background(current == name
+                            ? Color.accentColor
+                            : Color.primary.opacity(0.08))
+                        .foregroundStyle(current == name
+                            ? .white
+                            : .primary)
+                        .clipShape(RoundedRectangle(cornerRadius: 7))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    // MARK: - Actions
+
+    private var actionsSection: some View {
+        VStack(spacing: 1) {
+            if store.effectiveCapabilities.hasSpatialAudio {
+                spatialPicker
+                Divider().padding(.vertical, 3)
+            }
+
+            actionButton(icon: "rectangle.on.rectangle", title: store.text("showMainWindow")) {
+                showMainWindow()
+            }
+
+            actionButton(icon: "xmark", title: store.text("quit")) {
+                NSApp.terminate(nil)
+            }
+        }
+    }
+
+    private var spatialPicker: some View {
+        Picker(selection: Binding(
+            get: { store.snapshot.spatialMode },
+            set: { store.sendSpatialAudio($0) }
+        )) {
+            ForEach(SpatialAudioMode.allCases) { mode in
+                Text(mode.title(language: store.language)).tag(mode)
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "headphones")
+                    .frame(width: 16)
+                    .foregroundStyle(.secondary)
+                Text(store.text("spatialAudio"))
+                    .font(.system(size: 12))
+            }
+        }
+        .pickerStyle(.menu)
+        .padding(.vertical, 1)
+    }
+
+    private func actionButton(icon: String, title: String, action: @escaping () -> Void) -> some View {
+        MenuActionRow(icon: icon, title: title, action: action)
+    }
+
+    // MARK: - Helpers
 
     private func showMainWindow() {
         openWindow(id: "main")
         NSApp.activate(ignoringOtherApps: true)
-        NSApp.windows.first { $0.title == "OPods for Mac" }?.makeKeyAndOrderFront(nil)
     }
 }
+
+// MARK: - Menu Action Row
+
+private struct MenuActionRow: View {
+    let icon: String
+    let title: String
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .frame(width: 16)
+                    .foregroundStyle(.secondary)
+                Text(title)
+                    .font(.system(size: 12))
+                Spacer()
+            }
+            .contentShape(Rectangle())
+            .padding(.vertical, 5)
+            .padding(.horizontal, 4)
+            .background(isHovered ? Color.primary.opacity(0.08) : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.1)) {
+                isHovered = hovering
+            }
+        }
+    }
+}
+
