@@ -1,0 +1,317 @@
+import Foundation
+import IOBluetooth
+import IOKit
+
+enum PodsServiceEvent {
+    case connected(deviceName: String, capabilities: DeviceCapabilities, snapshot: PodSnapshot)
+    case snapshot(PodSnapshot)
+    case disconnected(String?)
+    case error(String)
+}
+
+enum PodsServiceError: LocalizedError {
+    case noPairedDevices
+    case deviceNotFound
+    case rfcommOpenFailed([String])
+    case writeFailed(IOReturn)
+
+    var errorDescription: String? {
+        switch self {
+        case .noPairedDevices:
+            "No paired Bluetooth devices were found. Pair the earbuds in macOS Bluetooth settings first."
+        case .deviceNotFound:
+            "Could not find the selected Bluetooth device."
+        case .rfcommOpenFailed(let attempts):
+            "Could not open OPPO RFCOMM channel. Tried \(attempts.joined(separator: ", "))."
+        case .writeFailed(let status):
+            "Bluetooth write failed with IOReturn \(status)."
+        }
+    }
+}
+
+final class MacBluetoothService: NSObject, IOBluetoothRFCOMMChannelDelegate, @unchecked Sendable {
+    var onEvent: ((PodsServiceEvent) -> Void)?
+
+    private let queue = DispatchQueue(label: "com.kelonl.OPodsMac.bluetooth")
+    private let parser = OppoFrameParser()
+    private var channel: IOBluetoothRFCOMMChannel?
+    private var device: IOBluetoothDevice?
+    private var capabilities = DeviceCapabilities.fallback
+    private var snapshot = PodSnapshot()
+    private var pollTimer: DispatchSourceTimer?
+    private var pollTick = 0
+
+    func pairedDevices() -> [BluetoothDeviceCandidate] {
+        let devices = IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] ?? []
+        return devices.compactMap { device in
+            guard let address = device.addressString else { return nil }
+            let name = device.nameOrAddress ?? address
+            return BluetoothDeviceCandidate(
+                address: address,
+                name: name,
+                likelySupported: DeviceCatalog.shared.likelySupported(deviceName: name)
+            )
+        }
+        .sorted {
+            if $0.likelySupported != $1.likelySupported {
+                return $0.likelySupported
+            }
+            return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+    }
+
+    func connect(to candidate: BluetoothDeviceCandidate?) async throws {
+        try await withCheckedThrowingContinuation { continuation in
+            queue.async {
+                do {
+                    try self.connectLocked(to: candidate)
+                    continuation.resume()
+                } catch {
+                    self.emit(.error(error.localizedDescription))
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    func disconnect() {
+        queue.async {
+            self.disconnectLocked(reason: nil)
+        }
+    }
+
+    func sendAnc(_ mode: AncMode) {
+        let requested = capabilities.isLegacyAnc ? OppoProtocol.legacyAncSwap(mode) : mode
+        send(OppoProtocol.packetAncMode(requested))
+    }
+
+    func sendSpatialSound(_ enabled: Bool) {
+        send(OppoProtocol.buildFeaturePacket(feature: OppoProtocol.Feature.spatial, enabled: enabled))
+    }
+
+    func sendSpatialAudio(_ mode: SpatialAudioMode) {
+        send(OppoProtocol.packetSpatialAudio(mode))
+    }
+
+    func sendDualDevice(_ enabled: Bool) {
+        send(OppoProtocol.buildFeaturePacket(feature: OppoProtocol.Feature.dualDevice, enabled: enabled))
+    }
+
+    func sendGameMode(_ enabled: Bool, compatible: Bool) {
+        send(OppoProtocol.buildFeaturePacket(feature: OppoProtocol.Feature.gameMain, enabled: enabled))
+        if compatible {
+            send(OppoProtocol.buildFeaturePacket(feature: OppoProtocol.Feature.gameLowLatency, enabled: enabled))
+        }
+    }
+
+    func sendEqPreset(_ name: String, capabilities: DeviceCapabilities) {
+        guard let identifier = capabilities.eqPresets[name] else { return }
+        send(OppoProtocol.buildPacket(command: OppoProtocol.Command.setEq, payload: [identifier]))
+    }
+
+    func refreshMultiConnectInfo() {
+        send(OppoProtocol.packetMultiConnectInfo)
+    }
+
+    func operateHandheld(address: String, connect: Bool) {
+        let bytes = address.split(separator: ":").compactMap { UInt8($0, radix: 16) }
+        guard bytes.count == 6 else { return }
+        send(OppoProtocol.buildPacket(command: OppoProtocol.Command.operateHandheld, payload: [connect ? 0x01 : 0x00] + bytes))
+    }
+
+    private func connectLocked(to candidate: BluetoothDeviceCandidate?) throws {
+        disconnectLocked(reason: nil, emitEvent: false)
+
+        let selectedDevice = try resolveDevice(candidate)
+        let deviceName = selectedDevice.nameOrAddress ?? selectedDevice.addressString ?? "OPPO earbuds"
+        capabilities = DeviceCatalog.shared.detect(deviceName: deviceName)
+
+        var failures: [String] = []
+        for channelID in channelIDs(for: selectedDevice) {
+            var openedChannel: IOBluetoothRFCOMMChannel?
+            let result = selectedDevice.openRFCOMMChannelSync(&openedChannel, withChannelID: channelID, delegate: self)
+            if result == kIOReturnSuccess, let openedChannel {
+                device = selectedDevice
+                channel = openedChannel
+                snapshot = PodSnapshot()
+                snapshot.connected = true
+                snapshot.connectedDeviceName = deviceName
+                emit(.connected(deviceName: deviceName, capabilities: capabilities, snapshot: snapshot))
+                sendStartupQueriesLocked()
+                startPollingLocked()
+                return
+            }
+            failures.append("channel \(channelID): \(result)")
+        }
+
+        throw PodsServiceError.rfcommOpenFailed(failures)
+    }
+
+    private func resolveDevice(_ candidate: BluetoothDeviceCandidate?) throws -> IOBluetoothDevice {
+        if let candidate {
+            guard let selected = IOBluetoothDevice(addressString: candidate.address) else {
+                throw PodsServiceError.deviceNotFound
+            }
+            return selected
+        }
+
+        let devices = IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] ?? []
+        guard !devices.isEmpty else { throw PodsServiceError.noPairedDevices }
+
+        if let supported = devices.first(where: { device in
+            let name = device.nameOrAddress ?? device.addressString ?? ""
+            return DeviceCatalog.shared.likelySupported(deviceName: name)
+        }) {
+            return supported
+        }
+
+        return devices[0]
+    }
+
+    private func channelIDs(for device: IOBluetoothDevice) -> [BluetoothRFCOMMChannelID] {
+        var ids: [BluetoothRFCOMMChannelID] = []
+
+        if let uuid = oppoSppUUID(),
+           let service = device.getServiceRecord(for: uuid) {
+            var serviceChannel = BluetoothRFCOMMChannelID(0)
+            if service.getRFCOMMChannelID(&serviceChannel) == kIOReturnSuccess, serviceChannel > 0 {
+                ids.append(serviceChannel)
+            }
+        }
+
+        ids.append(15)
+        ids.append(1)
+
+        var seen = Set<BluetoothRFCOMMChannelID>()
+        return ids.filter { seen.insert($0).inserted }
+    }
+
+    private func oppoSppUUID() -> IOBluetoothSDPUUID? {
+        let data = Data(OppoProtocol.oppoSppUUIDBytes)
+        return data.withUnsafeBytes { pointer -> IOBluetoothSDPUUID? in
+            guard let baseAddress = pointer.baseAddress else { return nil }
+            return IOBluetoothSDPUUID(bytes: baseAddress, length: OppoProtocol.oppoSppUUIDBytes.count)
+        }
+    }
+
+    private func sendStartupQueriesLocked() {
+        let startupPackets = [
+            OppoProtocol.packetBatchQuery,
+            OppoProtocol.packetBattery,
+            OppoProtocol.packetQueryAnc,
+            OppoProtocol.packetQueryEq,
+            OppoProtocol.packetRegisterNotify,
+            OppoProtocol.packetMultiConnectInfo
+        ]
+
+        for packet in startupPackets {
+            do {
+                try sendLocked(packet)
+            } catch {
+                emit(.error(error.localizedDescription))
+            }
+            Thread.sleep(forTimeInterval: 0.08)
+        }
+    }
+
+    private func startPollingLocked() {
+        pollTimer?.cancel()
+        pollTick = 0
+
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(deadline: .now() + 2, repeating: 5)
+        timer.setEventHandler { [weak self] in
+            self?.pollLocked()
+        }
+        timer.resume()
+        pollTimer = timer
+    }
+
+    private func pollLocked() {
+        guard snapshot.connected else { return }
+        pollTick += 1
+
+        sendSilentlyLocked(OppoProtocol.packetBattery)
+        sendSilentlyLocked(OppoProtocol.packetQueryAnc)
+
+        if pollTick % 2 == 0 {
+            sendSilentlyLocked(OppoProtocol.packetBatchQuery)
+        }
+
+        if pollTick % 3 == 0 {
+            sendSilentlyLocked(OppoProtocol.packetQueryEq)
+        }
+
+        if pollTick % 4 == 0 {
+            sendSilentlyLocked(OppoProtocol.packetMultiConnectInfo)
+        }
+    }
+
+    private func send(_ packet: [UInt8]) {
+        queue.async {
+            do {
+                try self.sendLocked(packet)
+            } catch {
+                self.emit(.error(error.localizedDescription))
+            }
+        }
+    }
+
+    private func sendSilentlyLocked(_ packet: [UInt8]) {
+        do {
+            try sendLocked(packet)
+        } catch {
+            disconnectLocked(reason: error.localizedDescription)
+        }
+    }
+
+    private func sendLocked(_ packet: [UInt8]) throws {
+        guard let channel else { throw PodsServiceError.writeFailed(kIOReturnNotOpen) }
+        var data = packet
+        let length = UInt16(data.count)
+        let result = data.withUnsafeMutableBytes { pointer in
+            channel.writeSync(pointer.baseAddress, length: length)
+        }
+        guard result == kIOReturnSuccess else {
+            throw PodsServiceError.writeFailed(result)
+        }
+    }
+
+    private func disconnectLocked(reason: String?, emitEvent: Bool = true) {
+        pollTimer?.cancel()
+        pollTimer = nil
+
+        if let channel {
+            _ = channel.close()
+        }
+
+        channel = nil
+        device = nil
+        snapshot.connected = false
+
+        if emitEvent {
+            emit(.disconnected(reason))
+        }
+    }
+
+    private func emit(_ event: PodsServiceEvent) {
+        onEvent?(event)
+    }
+
+    func rfcommChannelData(_ rfcommChannel: IOBluetoothRFCOMMChannel!, data dataPointer: UnsafeMutableRawPointer!, length dataLength: Int) {
+        guard let dataPointer, dataLength > 0 else { return }
+        let bytes = Array(UnsafeBufferPointer(start: dataPointer.assumingMemoryBound(to: UInt8.self), count: dataLength))
+        queue.async {
+            for frame in self.parser.append(bytes) {
+                OppoFrameReducer.apply(frame, to: &self.snapshot, capabilities: self.capabilities)
+            }
+            self.emit(.snapshot(self.snapshot))
+        }
+    }
+
+    func rfcommChannelClosed(_ rfcommChannel: IOBluetoothRFCOMMChannel!) {
+        queue.async {
+            self.disconnectLocked(reason: "Bluetooth channel closed")
+        }
+    }
+}
