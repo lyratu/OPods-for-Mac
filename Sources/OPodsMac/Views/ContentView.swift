@@ -2,13 +2,17 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var store: PodsStore
-    @State private var selection: AppSection? = .overview
+    @SceneStorage("selectedAppSection") private var selectionRawValue = AppSection.overview.rawValue
+
+    private var selectedSection: AppSection {
+        AppSection(rawValue: selectionRawValue) ?? .overview
+    }
 
     var body: some View {
         NavigationSplitView {
-            List(AppSection.allCases, selection: $selection) { section in
-                Label(section.title, systemImage: section.systemImage)
-                    .tag(section)
+            List(AppSection.allCases, selection: $selectionRawValue) { section in
+                Label(section.title(language: store.language), systemImage: section.systemImage)
+                    .tag(section.rawValue)
             }
             .listStyle(.sidebar)
             .navigationTitle("OPods")
@@ -19,7 +23,7 @@ struct ContentView: View {
             }
         } detail: {
             Group {
-                switch selection ?? .overview {
+                switch selectedSection {
                 case .overview:
                     OverviewView()
                 case .controls:
@@ -32,13 +36,13 @@ struct ContentView: View {
                     AboutView()
                 }
             }
-            .navigationTitle((selection ?? .overview).title)
+            .navigationTitle(selectedSection.title(language: store.language))
             .toolbar {
                 ToolbarItemGroup {
                     Button {
                         store.refreshPairedDevices()
                     } label: {
-                        Label("Refresh", systemImage: "arrow.clockwise")
+                        Label(store.text("refresh"), systemImage: "arrow.clockwise")
                     }
                     .help("Refresh paired Bluetooth devices")
 
@@ -46,14 +50,14 @@ struct ContentView: View {
                         Button {
                             store.disconnect()
                         } label: {
-                            Label("Disconnect", systemImage: "bolt.horizontal.circle")
+                            Label(store.text("disconnect"), systemImage: "bolt.horizontal.circle")
                         }
                         .help("Disconnect earbuds")
                     } else {
                         Button {
                             store.connectAutomatically()
                         } label: {
-                            Label("Connect", systemImage: "dot.radiowaves.left.and.right")
+                            Label(store.text("connect"), systemImage: "dot.radiowaves.left.and.right")
                         }
                         .help("Connect to a supported paired device")
                     }
@@ -72,7 +76,7 @@ struct SidebarStatusView: View {
                 Circle()
                     .fill(statusColor)
                     .frame(width: 8, height: 8)
-                Text(store.phase.title)
+                Text(store.phase.title(language: store.language))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.primary)
             }

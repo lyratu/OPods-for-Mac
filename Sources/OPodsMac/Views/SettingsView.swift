@@ -5,35 +5,46 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("Device Model") {
-                Picker("Override", selection: Binding(
+            Section(store.text("language")) {
+                Picker(store.text("language"), selection: $store.language) {
+                    ForEach(AppLanguage.allCases) { language in
+                        Text(language.displayName).tag(language)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+
+            Section(store.text("deviceModel")) {
+                Picker(store.text("override"), selection: Binding(
                     get: { store.selectedModelOverride ?? "" },
                     set: { store.selectedModelOverride = $0.isEmpty ? nil : $0 }
                 )) {
-                    Text("Auto detect").tag("")
+                    Text(store.text("autoDetect")).tag("")
                     ForEach(store.filteredModelNames, id: \.self) { name in
                         Text(name).tag(name)
                     }
                 }
                 .searchable(text: $store.modelSearch)
 
-                LabeledContent("Detected") {
+                LabeledContent(store.text("detected")) {
                     Text(store.detectedCapabilities.modelName)
                 }
-                LabeledContent("Model ID") {
+                LabeledContent(store.text("modelId")) {
                     Text(store.effectiveCapabilities.modelId.isEmpty ? "--" : store.effectiveCapabilities.modelId)
                 }
             }
 
-            Section("Command Compatibility") {
-                Toggle("Send legacy low-latency game feature too", isOn: $store.gameModeCompatible)
+            Section(store.text("commandCompatibility")) {
+                Toggle(store.text("legacyGameFeature"), isOn: $store.gameModeCompatible)
             }
 
-            Section("Capabilities") {
-                CapabilityRow(title: "Adaptive ANC", enabled: store.effectiveCapabilities.hasAdaptiveAnc)
-                CapabilityRow(title: "Spatial sound", enabled: store.effectiveCapabilities.hasSpatialSound)
-                CapabilityRow(title: "Spatial audio modes", enabled: store.effectiveCapabilities.hasSpatialAudio)
-                CapabilityRow(title: "Dual-device connection", enabled: store.effectiveCapabilities.hasDualDevice)
+            Section(store.text("capabilities")) {
+                CapabilityRow(title: store.text("noiseControl"), enabled: !store.effectiveCapabilities.availableAncMainModes.isEmpty)
+                CapabilityRow(title: store.text("anc.level"), enabled: store.effectiveCapabilities.hasAncSubModes)
+                CapabilityRow(title: store.text("adaptiveAnc"), enabled: store.effectiveCapabilities.hasAdaptiveAnc)
+                CapabilityRow(title: store.text("spatialSound"), enabled: store.effectiveCapabilities.hasSpatialSound)
+                CapabilityRow(title: store.text("spatialAudioModes"), enabled: store.effectiveCapabilities.hasSpatialAudio)
+                CapabilityRow(title: store.text("dualDevice"), enabled: store.effectiveCapabilities.hasDualDevice)
             }
         }
         .formStyle(.grouped)

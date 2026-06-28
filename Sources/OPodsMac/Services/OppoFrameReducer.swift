@@ -74,12 +74,16 @@ enum OppoFrameReducer {
 
     private static func ParseBatchStatus(_ payload: [UInt8], snapshot: inout PodSnapshot) {
         var index = 0
+        var gameMain: Bool?
+        var gameLowLatency: Bool?
         while index + 1 < payload.count {
             let feature = payload[index]
             let value = payload[index + 1]
             switch feature {
             case OppoProtocol.FeatureGameMain:
-                snapshot.gameMode = value != 0
+                gameMain = value != 0
+            case OppoProtocol.FeatureGameLL:
+                gameLowLatency = value != 0
             case OppoProtocol.FeatureDualDevice:
                 snapshot.dualDevice = value != 0
             case OppoProtocol.FeatureSpatial:
@@ -88,6 +92,10 @@ enum OppoFrameReducer {
                 break
             }
             index += 2
+        }
+
+        if gameMain != nil || gameLowLatency != nil {
+            snapshot.gameMode = (gameMain ?? false) || (gameLowLatency ?? false)
         }
     }
 

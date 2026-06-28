@@ -6,12 +6,12 @@ enum ConnectionPhase: Equatable {
     case connected
     case failed(String)
 
-    var title: String {
+    func title(language: AppLanguage) -> String {
         switch self {
-        case .disconnected: "Disconnected"
-        case .connecting: "Connecting"
-        case .connected: "Connected"
-        case .failed: "Needs attention"
+        case .disconnected: AppStrings.text("phase.disconnected", language: language)
+        case .connecting: AppStrings.text("phase.connecting", language: language)
+        case .connected: AppStrings.text("phase.connected", language: language)
+        case .failed: AppStrings.text("phase.failed", language: language)
         }
     }
 }
@@ -22,8 +22,15 @@ final class PodsStore: ObservableObject {
     @Published private(set) var detectedCapabilities = DeviceCapabilities.fallback
     @Published private(set) var pairedDevices: [BluetoothDeviceCandidate] = []
     @Published private(set) var phase: ConnectionPhase = .disconnected
-    @Published var statusMessage = "Pair OPPO, OnePlus, or realme earbuds in macOS Bluetooth settings, then connect."
+    @Published var statusMessage: String
     @Published var modelSearch = ""
+    @Published var language: AppLanguage {
+        didSet {
+            if language == oldValue { return }
+            UserDefaults.standard.set(language.rawValue, forKey: Self.languageKey)
+            refreshLocalizedStatusMessage()
+        }
+    }
     @Published var selectedModelOverride: String? {
         didSet {
             if selectedModelOverride == oldValue { return }
@@ -38,10 +45,17 @@ final class PodsStore: ObservableObject {
 
     private static let modelOverrideKey = "modelOverride"
     private static let gameModeCompatibleKey = "gameModeCompatible"
+    private static let languageKey = "appLanguage"
 
     private let service = RfcommService()
+    private var statusMessageKey = "status.initial"
+    private var statusMessageArgument: String?
+    private var gameModeUserSetAt = Date.distantPast
 
     init() {
+        let initialLanguage = AppLanguage(rawValue: UserDefaults.standard.string(forKey: Self.languageKey) ?? "") ?? .english
+        language = initialLanguage
+        statusMessage = AppStrings.text("status.initial", language: initialLanguage)
         selectedModelOverride = UserDefaults.standard.string(forKey: Self.modelOverrideKey)
         gameModeCompatible = UserDefaults.standard.bool(forKey: Self.gameModeCompatibleKey)
         service.onEvent = { [weak self] event in
@@ -68,6 +82,18 @@ final class PodsStore: ObservableObject {
         return modelNames.filter { $0.localizedCaseInsensitiveContains(modelSearch) }
     }
 
+    var availableAncControlModes: [AncMode] {
+        let caps = effectiveCapabilities
+        guard !caps.availableAncMainModes.isEmpty else { return [] }
+
+        if caps.availableAncSubModes.isEmpty {
+            return caps.availableAncMainModes
+        }
+
+        let mainModes = caps.availableAncMainModes.filter { $0 != .smart }
+        return mainModes + caps.availableAncSubModes
+    }
+
     var menuBarTitle: String {
         guard snapshot.connected else { return "OPods" }
         let parts = [PodComponent.left, .right, .case].compactMap { component -> String? in
@@ -75,6 +101,10 @@ final class PodsStore: ObservableObject {
             return "\(component.rawValue)\(reading.clippedLevel)"
         }
         return parts.isEmpty ? "OPods" : parts.joined(separator: " ")
+    }
+
+    func text(_ key: String) -> String {
+        AppStrings.text(key, language: language)
     }
 
     func refreshPairedDevices() {
@@ -87,7 +117,11 @@ final class PodsStore: ObservableObject {
 
     func connect(to device: BluetoothDeviceCandidate?) {
         phase = .connecting
-        statusMessage = device.map { "Connecting to \($0.name)..." } ?? "Searching for a supported paired device..."
+        if let device {
+            setStatus("status.connectingDevice", argument: device.name)
+        } else {
+            setStatus("status.searching")
+        }
 
         Task {
             do {
@@ -104,6 +138,7 @@ final class PodsStore: ObservableObject {
     }
 
     func sendAnc(_ mode: AncMode) {
+        guard availableAncControlModes.contains(mode) else { return }
         snapshot.ancMode = mode
         service.sendAnc(mode)
     }
@@ -124,6 +159,7 @@ final class PodsStore: ObservableObject {
     }
 
     func sendGameMode(_ enabled: Bool) {
+        gameModeUserSetAt = Date()
         snapshot.gameMode = enabled
         service.sendGameMode(enabled, compatible: gameModeCompatible)
     }
@@ -147,17 +183,54 @@ final class PodsStore: ObservableObject {
             self.snapshot = snapshot
             detectedCapabilities = capabilities
             phase = .connected
-            statusMessage = "Connected to \(capabilities.modelName == "Unknown" ? deviceName : capabilities.modelName)."
+            let name = capabilities.modelName == "Unknown" ? deviceName : capabilities.modelName
+            setStatus("status.connectedDevice", argument: name)
         case .snapshot(let snapshot):
-            self.snapshot = snapshot
+            var next = snapshot
+            if Date().timeIntervalSince(gameModeUserSetAt) < 3 {
+                next.gameMode = self.snapshot.gameMode
+            }
+            self.snapshot = next
             phase = snapshot.connected ? .connected : .disconnected
         case .disconnected(let reason):
             snapshot.connected = false
             phase = .disconnected
-            statusMessage = reason ?? "Disconnected."
+            if let reason {
+                statusMessage = reason
+                statusMessageKey = ""
+                statusMessageArgument = nil
+            } else {
+                setStatus("status.disconnected")
+            }
         case .error(let message):
             phase = .failed(message)
             statusMessage = message
+            statusMessageKey = ""
+            statusMessageArgument = nil
+        }
+    }
+
+    private func setStatus(_ key: String, argument: String? = nil) {
+        statusMessageKey = key
+        statusMessageArgument = argument
+        statusMessage = localizedStatus(key: key, argument: argument)
+    }
+
+    private func refreshLocalizedStatusMessage() {
+        guard !statusMessageKey.isEmpty else { return }
+        statusMessage = localizedStatus(key: statusMessageKey, argument: statusMessageArgument)
+    }
+
+    private func localizedStatus(key: String, argument: String?) -> String {
+        switch key {
+        case "status.connectedDevice":
+            let format = language == .chinese ? "已连接到 %@。" : "Connected to %@."
+            return String(format: format, argument ?? "")
+        case "status.connectingDevice":
+            let format = language == .chinese ? "正在连接 %@..." : "Connecting to %@..."
+            return String(format: format, argument ?? "")
+        default:
+            return text(key)
         }
     }
 }

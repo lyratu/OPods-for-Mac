@@ -1,32 +1,41 @@
 import SwiftUI
 
 struct AboutView: View {
+    @EnvironmentObject private var store: PodsStore
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Label("OPods for Mac", systemImage: "earbuds")
-                .font(.title2.weight(.semibold))
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Label("OPods for Mac", systemImage: "earbuds")
+                    .font(.title2.weight(.semibold))
 
-            Text("A native macOS SwiftUI controller for OPPO, OnePlus, and realme earbuds, adapted from the Windows OPPO Pods reverse-engineered protocol.")
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+                Text(store.text("about.description"))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-            Divider()
+                Divider()
 
-            Text("Protocol and device matrix reference")
-                .font(.headline)
-            Text("Zhaoyi-ya/OPPO-Pods-For-Windows, Leaf-lsgtky/OppoPods, 1812z/OppoPods, and OPPO Melody 16.8.1 extracted device metadata.")
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+                Text(store.text("about.reference"))
+                    .font(.headline)
+                Text(store.text("about.reference.body"))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-            Text("License")
-                .font(.headline)
-            Text("The protocol-derived implementation and bundled device metadata are treated as GPL-3.0-derived material from the reference project.")
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+                Text(store.text("about.sync"))
+                    .font(.headline)
+                Text(store.text("about.sync.body"))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-            Spacer()
+                Text(store.text("about.license"))
+                    .font(.headline)
+                Text(store.text("about.license.body"))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(24)
+            .frame(maxWidth: 760, alignment: .leading)
         }
-        .padding(24)
-        .frame(maxWidth: 700, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }

@@ -8,10 +8,14 @@ enum PodComponent: String, CaseIterable, Identifiable, Hashable {
     var id: String { rawValue }
 
     var title: String {
+        title(language: .english)
+    }
+
+    func title(language: AppLanguage) -> String {
         switch self {
-        case .left: "Left"
-        case .right: "Right"
-        case .case: "Case"
+        case .left: AppStrings.text("component.left", language: language)
+        case .right: AppStrings.text("component.right", language: language)
+        case .case: AppStrings.text("component.case", language: language)
         }
     }
 
@@ -47,9 +51,19 @@ enum WearingStatus: String, Equatable {
         default: self = .unknown
         }
     }
+
+    func title(language: AppLanguage) -> String {
+        switch self {
+        case .disconnected: AppStrings.text("wear.disconnected", language: language)
+        case .inCase: AppStrings.text("wear.inCase", language: language)
+        case .removed: AppStrings.text("wear.removed", language: language)
+        case .worn: AppStrings.text("wear.worn", language: language)
+        case .unknown: AppStrings.text("wear.unknown", language: language)
+        }
+    }
 }
 
-enum AncMode: String, CaseIterable, Identifiable, Equatable {
+enum AncMode: String, CaseIterable, Identifiable, Equatable, Hashable {
     case off = "Off"
     case smart = "Smart"
     case light = "Light"
@@ -62,15 +76,19 @@ enum AncMode: String, CaseIterable, Identifiable, Equatable {
     var id: String { rawValue }
 
     var title: String {
+        title(language: .english)
+    }
+
+    func title(language: AppLanguage) -> String {
         switch self {
-        case .off: "Off"
-        case .smart: "Smart"
-        case .light: "Light"
-        case .medium: "Medium"
-        case .deep: "Deep"
-        case .adaptive: "Adaptive"
-        case .transparency: "Transparency"
-        case .unknown: "Unknown"
+        case .off: AppStrings.text("anc.off", language: language)
+        case .smart: AppStrings.text("anc.smart", language: language)
+        case .light: AppStrings.text("anc.light", language: language)
+        case .medium: AppStrings.text("anc.medium", language: language)
+        case .deep: AppStrings.text("anc.deep", language: language)
+        case .adaptive: AppStrings.text("anc.adaptive", language: language)
+        case .transparency: AppStrings.text("anc.transparency", language: language)
+        case .unknown: AppStrings.text("unknown", language: language)
         }
     }
 }
@@ -81,6 +99,14 @@ enum SpatialAudioMode: String, CaseIterable, Identifiable, Equatable {
     case tracking = "Track"
 
     var id: String { rawValue }
+
+    func title(language: AppLanguage) -> String {
+        switch self {
+        case .off: AppStrings.text("spatial.off", language: language)
+        case .fixed: AppStrings.text("spatial.fixed", language: language)
+        case .tracking: AppStrings.text("spatial.tracking", language: language)
+        }
+    }
 }
 
 struct ConnectedDeviceInfo: Identifiable, Equatable {
@@ -95,10 +121,14 @@ struct ConnectedDeviceInfo: Identifiable, Equatable {
     var id: String { address }
 
     var statusText: String {
+        statusText(language: .english)
+    }
+
+    func statusText(language: AppLanguage) -> String {
         switch connectionState {
-        case 2: isCurrentDevice ? "Current device" : "Connected"
-        case 1: "Connecting"
-        default: "Disconnected"
+        case 2: isCurrentDevice ? AppStrings.text("connected", language: language) : AppStrings.text("connected", language: language)
+        case 1: AppStrings.text("connecting", language: language)
+        default: AppStrings.text("disconnected", language: language)
         }
     }
 }
@@ -144,12 +174,16 @@ enum AppSection: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     var title: String {
+        title(language: .english)
+    }
+
+    func title(language: AppLanguage) -> String {
         switch self {
-        case .overview: "Overview"
-        case .controls: "Controls"
-        case .devices: "Devices"
-        case .settings: "Settings"
-        case .about: "About"
+        case .overview: AppStrings.text("overview", language: language)
+        case .controls: AppStrings.text("controls", language: language)
+        case .devices: AppStrings.text("devices", language: language)
+        case .settings: AppStrings.text("settings", language: language)
+        case .about: AppStrings.text("about", language: language)
         }
     }
 

@@ -13,4 +13,16 @@ final class DeviceCatalogTests: XCTestCase {
         XCTAssertTrue(caps.hasDualDevice)
         XCTAssertFalse(caps.eqPresets.isEmpty)
     }
+
+    func testAncOptionsFollowImportedDeviceMatrix() {
+        let air4s = DeviceCapabilities.Detect("OPPO Enco Air4s")
+        XCTAssertEqual(air4s.availableAncMainModes, [.off, .transparency, .smart])
+        XCTAssertFalse(air4s.hasAdaptiveAnc)
+        XCTAssertTrue(air4s.availableAncSubModes.isEmpty)
+
+        let free4 = DeviceCapabilities.Detect("OPPO Enco Free4")
+        XCTAssertEqual(free4.availableAncMainModes, [.off, .adaptive, .transparency, .smart])
+        XCTAssertTrue(free4.hasAdaptiveAnc)
+        XCTAssertEqual(free4.availableAncSubModes, [.smart, .light, .medium, .deep])
+    }
 }

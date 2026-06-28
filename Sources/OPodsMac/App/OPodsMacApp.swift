@@ -7,24 +7,24 @@ struct OPodsMacApp: App {
     @StateObject private var store = PodsStore()
 
     var body: some Scene {
-        WindowGroup("OPods for Mac") {
+        WindowGroup("OPods for Mac", id: "main") {
             ContentView()
                 .environmentObject(store)
                 .frame(minWidth: 840, minHeight: 560)
         }
         .commands {
             CommandMenu("Pods") {
-                Button("Connect") {
+                Button(store.text("connect")) {
                     store.connectAutomatically()
                 }
                 .keyboardShortcut("k", modifiers: [.command])
 
-                Button("Refresh Paired Devices") {
+                Button(store.text("refreshDevices")) {
                     store.refreshPairedDevices()
                 }
                 .keyboardShortcut("r", modifiers: [.command])
 
-                Button("Disconnect") {
+                Button(store.text("disconnect")) {
                     store.disconnect()
                 }
                 .keyboardShortcut("d", modifiers: [.command, .shift])

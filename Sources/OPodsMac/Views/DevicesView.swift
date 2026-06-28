@@ -7,13 +7,13 @@ struct DevicesView: View {
         HSplitView {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Text("Paired Bluetooth Devices")
+                    Text(store.text("pairedBluetoothDevices"))
                         .font(.headline)
                     Spacer()
                     Button {
                         store.refreshPairedDevices()
                     } label: {
-                        Label("Refresh", systemImage: "arrow.clockwise")
+                        Label(store.text("refresh"), systemImage: "arrow.clockwise")
                     }
                 }
 
@@ -28,7 +28,7 @@ struct DevicesView: View {
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Button("Connect") {
+                        Button(store.text("connect")) {
                             store.connect(to: device)
                         }
                     }
@@ -36,7 +36,7 @@ struct DevicesView: View {
                 }
                 .overlay {
                     if store.pairedDevices.isEmpty {
-                        EmptyStateView(title: "No Paired Devices", systemImage: "dot.radiowaves.left.and.right")
+                        EmptyStateView(title: store.text("noPairedDevices"), systemImage: "dot.radiowaves.left.and.right")
                     }
                 }
             }
@@ -45,13 +45,13 @@ struct DevicesView: View {
 
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Text("Dual-device List")
+                    Text(store.text("dualDeviceList"))
                         .font(.headline)
                     Spacer()
                     Button {
                         store.refreshMultiConnectInfo()
                     } label: {
-                        Label("Refresh", systemImage: "arrow.clockwise")
+                        Label(store.text("refresh"), systemImage: "arrow.clockwise")
                     }
                     .disabled(!store.snapshot.connected)
                 }
@@ -62,13 +62,13 @@ struct DevicesView: View {
                             .foregroundStyle(device.isCurrentDevice ? Color.accentColor : Color.secondary)
                         VStack(alignment: .leading) {
                             Text(device.deviceName)
-                            Text(device.statusText)
+                            Text(device.statusText(language: store.language))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
                         if !device.isCurrentDevice {
-                            Button("Switch") {
+                            Button(store.text("switchDevice")) {
                                 store.operateHandheld(address: device.address, connect: true)
                             }
                         }
@@ -77,7 +77,7 @@ struct DevicesView: View {
                 }
                 .overlay {
                     if store.snapshot.connectedDevices.isEmpty {
-                        EmptyStateView(title: "No Device List", systemImage: "rectangle.connected.to.line.below")
+                        EmptyStateView(title: store.text("noDeviceList"), systemImage: "rectangle.connected.to.line.below")
                     }
                 }
             }
@@ -88,6 +88,8 @@ struct DevicesView: View {
 }
 
 struct EmptyStateView: View {
+    @EnvironmentObject private var store: PodsStore
+
     var title: String
     var systemImage: String
 
@@ -98,7 +100,7 @@ struct EmptyStateView: View {
                 .foregroundStyle(.secondary)
             Text(title)
                 .font(.headline)
-            Text("Use macOS Bluetooth settings to pair earbuds first.")
+            Text(store.text("pairHint"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

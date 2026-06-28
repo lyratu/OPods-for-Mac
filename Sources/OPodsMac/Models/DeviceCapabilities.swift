@@ -13,8 +13,11 @@ struct DeviceCapabilities: Equatable {
     var hasSpatialSound = false
     var hasDualDevice = false
     var hasAdaptiveAnc = false
+    var hasAncSubModes = false
     var isLegacyAnc = false
     var hasGameMode = true
+    var availableAncMainModes: [AncMode] = []
+    var availableAncSubModes: [AncMode] = []
     var eqPresets: [String: UInt8] = ["Default": 0]
     var eqNames: [UInt8: String] = [0: "Default"]
     var ancModeMap: [AncResponseKey: AncMode] = [:]
@@ -132,10 +135,13 @@ final class DeviceCatalog {
         }
 
         if let noiseReductionMode = function.noiseReductionMode {
-            caps.hasAdaptiveAnc = noiseReductionMode.contains { $0.childrenMode?.isEmpty == false }
+            caps.hasAdaptiveAnc = noiseReductionMode.contains { $0.modeType == 10 }
+            caps.availableAncMainModes = buildAncMainModes(from: noiseReductionMode)
+            caps.availableAncSubModes = buildAncSubModes(from: noiseReductionMode)
+            caps.hasAncSubModes = !caps.availableAncSubModes.isEmpty
             caps.ancModeMap = buildAncMap(from: noiseReductionMode)
 
-            if !caps.hasAdaptiveAnc {
+            if !caps.hasAncSubModes {
                 caps.isLegacyAnc = noiseReductionMode.contains {
                     $0.modeType == 5 && $0.protocolIndex == 0
                 }
@@ -146,6 +152,37 @@ final class DeviceCatalog {
         caps.eqNames = eqNames
         caps.eqPresets = Dictionary(uniqueKeysWithValues: eqNames.map { ($0.value, $0.key) })
         return caps
+    }
+
+    private func buildAncMainModes(from modes: [NoiseReductionMode]) -> [AncMode] {
+        var available = Set<AncMode>()
+        for mode in modes {
+            switch mode.modeType {
+            case 1:
+                available.insert(.off)
+            case 2:
+                available.insert(.transparency)
+            case 5:
+                available.insert(.smart)
+            case 10:
+                available.insert(.adaptive)
+            case 3, 4, 7:
+                available.insert(.smart)
+            default:
+                break
+            }
+        }
+        return [.off, .adaptive, .transparency, .smart].filter { available.contains($0) }
+    }
+
+    private func buildAncSubModes(from modes: [NoiseReductionMode]) -> [AncMode] {
+        let subNames: [AncMode] = [.smart, .light, .medium, .deep]
+        guard let noiseCancelling = modes.first(where: { $0.modeType == 5 }),
+              let children = noiseCancelling.childrenMode,
+              !children.isEmpty else {
+            return []
+        }
+        return Array(subNames.prefix(children.count))
     }
 
     private func buildEqNames(from modes: [ModeIndexEntry]?) -> [UInt8: String] {

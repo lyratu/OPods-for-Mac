@@ -5,43 +5,48 @@ struct ControlsView: View {
 
     var body: some View {
         Form {
-            Section("Noise Control") {
-                Picker("ANC mode", selection: Binding(
-                    get: { store.snapshot.ancMode },
-                    set: { store.sendAnc($0) }
-                )) {
-                    Text("Off").tag(AncMode.off)
-                    Text("Smart").tag(AncMode.smart)
-                    Text("Light").tag(AncMode.light)
-                    Text("Medium").tag(AncMode.medium)
-                    Text("Deep").tag(AncMode.deep)
-                    if store.effectiveCapabilities.hasAdaptiveAnc {
-                        Text("Adaptive").tag(AncMode.adaptive)
+            Section(store.text("noiseControl")) {
+                if ancModes.isEmpty {
+                    Text(store.text("anc.unsupported"))
+                        .foregroundStyle(.secondary)
+                } else {
+                    Picker(store.text("anc.mode"), selection: Binding(
+                        get: {
+                            ancModes.contains(store.snapshot.ancMode)
+                                ? store.snapshot.ancMode
+                                : (ancModes.first ?? .unknown)
+                        },
+                        set: { store.sendAnc($0) }
+                    )) {
+                        ForEach(ancModes) { mode in
+                            Text(mode.title(language: store.language)).tag(mode)
+                        }
                     }
-                    Text("Transparency").tag(AncMode.transparency)
+                    .pickerStyle(.segmented)
                 }
-                .pickerStyle(.segmented)
             }
 
-            Section("Sound") {
-                Toggle("Spatial sound", isOn: Binding(
-                    get: { store.snapshot.spatialSound },
-                    set: { store.sendSpatialSound($0) }
-                ))
-                .disabled(!store.effectiveCapabilities.hasSpatialSound)
-
-                Picker("Spatial audio", selection: Binding(
-                    get: { store.snapshot.spatialMode },
-                    set: { store.sendSpatialAudio($0) }
-                )) {
-                    Text("Off").tag(SpatialAudioMode.off)
-                    Text("Fixed").tag(SpatialAudioMode.fixed)
-                    Text("Head Tracking").tag(SpatialAudioMode.tracking)
+            Section(store.text("sound")) {
+                if store.effectiveCapabilities.hasSpatialSound {
+                    Toggle(store.text("spatialSound"), isOn: Binding(
+                        get: { store.snapshot.spatialSound },
+                        set: { store.sendSpatialSound($0) }
+                    ))
                 }
-                .pickerStyle(.segmented)
-                .disabled(!store.effectiveCapabilities.hasSpatialAudio)
 
-                Picker("EQ preset", selection: Binding(
+                if store.effectiveCapabilities.hasSpatialAudio {
+                    Picker(store.text("spatialAudio"), selection: Binding(
+                        get: { store.snapshot.spatialMode },
+                        set: { store.sendSpatialAudio($0) }
+                    )) {
+                        ForEach(SpatialAudioMode.allCases) { mode in
+                            Text(mode.title(language: store.language)).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                Picker(store.text("eqPreset"), selection: Binding(
                     get: { store.snapshot.eqPreset.isEmpty ? firstEqName : store.snapshot.eqPreset },
                     set: { store.sendEqPreset($0) }
                 )) {
@@ -51,21 +56,26 @@ struct ControlsView: View {
                 }
             }
 
-            Section("Connection") {
-                Toggle("Game mode", isOn: Binding(
+            Section(store.text("connection")) {
+                Toggle(store.text("gameMode"), isOn: Binding(
                     get: { store.snapshot.gameMode },
                     set: { store.sendGameMode($0) }
                 ))
 
-                Toggle("Dual-device connection", isOn: Binding(
-                    get: { store.snapshot.dualDevice },
-                    set: { store.sendDualDevice($0) }
-                ))
-                .disabled(!store.effectiveCapabilities.hasDualDevice)
+                if store.effectiveCapabilities.hasDualDevice {
+                    Toggle(store.text("dualDevice"), isOn: Binding(
+                        get: { store.snapshot.dualDevice },
+                        set: { store.sendDualDevice($0) }
+                    ))
+                }
             }
         }
         .formStyle(.grouped)
         .padding(20)
+    }
+
+    private var ancModes: [AncMode] {
+        store.availableAncControlModes
     }
 
     private var eqNames: [String] {

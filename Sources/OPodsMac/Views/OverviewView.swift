@@ -37,7 +37,7 @@ struct OverviewView: View {
                 Button {
                     store.snapshot.connected ? store.disconnect() : store.connectAutomatically()
                 } label: {
-                    Label(store.snapshot.connected ? "Disconnect" : "Connect", systemImage: store.snapshot.connected ? "xmark.circle" : "link")
+                            Label(store.snapshot.connected ? store.text("disconnect") : store.text("connect"), systemImage: store.snapshot.connected ? "xmark.circle" : "link")
                 }
                 .buttonStyle(.borderedProminent)
             }
@@ -61,7 +61,7 @@ struct BatteryOverview: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Battery")
+            Text(store.text("battery"))
                 .font(.headline)
 
             HStack(spacing: 14) {
@@ -74,6 +74,8 @@ struct BatteryOverview: View {
 }
 
 struct BatteryTile: View {
+    @EnvironmentObject private var store: PodsStore
+
     var component: PodComponent
     var reading: BatteryReading?
 
@@ -83,9 +85,9 @@ struct BatteryTile: View {
                 EarbudAssetImage(name: component.assetName)
                     .frame(width: 44, height: 44)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(component.title)
+                    Text(component.title(language: store.language))
                         .font(.headline)
-                    Text(reading?.charging == true ? "Charging" : "Ready")
+                    Text(reading?.charging == true ? store.text("charging") : store.text("ready"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -109,13 +111,13 @@ struct WearingOverview: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Wear Detection")
+            Text(store.text("wearDetection"))
                 .font(.headline)
 
             HStack(spacing: 12) {
                 ForEach([PodComponent.left, .right]) { component in
                     Label {
-                        Text(store.snapshot.wearing[component]?.rawValue ?? "No report")
+                        Text(store.snapshot.wearing[component]?.title(language: store.language) ?? store.text("noReport"))
                     } icon: {
                         Image(systemName: component == .left ? "l.circle" : "r.circle")
                     }
@@ -134,19 +136,23 @@ struct QuickControlsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Quick Controls")
+            Text(store.text("quickControls"))
                 .font(.headline)
 
-            HStack(spacing: 10) {
-                ForEach([AncMode.off, .smart, .adaptive, .transparency]) { mode in
-                    Button {
-                        store.sendAnc(mode)
-                    } label: {
-                        Label(mode.title, systemImage: store.snapshot.ancMode == mode ? "checkmark.circle.fill" : "circle")
-                            .frame(minWidth: 86)
+            if store.availableAncControlModes.isEmpty {
+                Text(store.text("anc.unsupported"))
+                    .foregroundStyle(.secondary)
+            } else {
+                HStack(spacing: 10) {
+                    ForEach(store.availableAncControlModes.prefix(4).map { $0 }) { mode in
+                        Button {
+                            store.sendAnc(mode)
+                        } label: {
+                            Label(mode.title(language: store.language), systemImage: store.snapshot.ancMode == mode ? "checkmark.circle.fill" : "circle")
+                                .frame(minWidth: 86)
+                        }
+                        .buttonStyle(.bordered)
                     }
-                    .buttonStyle(.bordered)
-                    .disabled(mode == .adaptive && !store.effectiveCapabilities.hasAdaptiveAnc)
                 }
             }
         }

@@ -42,4 +42,17 @@ final class OppoProtocolTests: XCTestCase {
         XCTAssertEqual(snapshot.battery[.right], BatteryReading(level: 64, charging: true))
         XCTAssertEqual(snapshot.battery[.case], BatteryReading(level: 97, charging: false))
     }
+
+    func testLegacyGameFeatureKeepsGameModeOn() {
+        var snapshot = PodSnapshot()
+        let payload = [
+            OppoProtocol.FeatureGameLL, 1,
+            OppoProtocol.FeatureGameMain, 0
+        ]
+        let frame = OppoFrame(command: OppoProtocol.CmdBatchQueryResp, payload: payload)
+
+        OppoFrameReducer.apply(frame, to: &snapshot, capabilities: .fallback)
+
+        XCTAssertTrue(snapshot.gameMode)
+    }
 }
