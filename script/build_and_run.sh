@@ -29,9 +29,7 @@ cp "$BUILD_BINARY" "$APP_BINARY"
 chmod +x "$APP_BINARY"
 
 find "$BUILD_DIR" -maxdepth 1 -type d -name "*.bundle" -exec cp -R {} "$APP_BUNDLE/" \;
-find "$BUILD_DIR" -maxdepth 1 -type d -name "*.bundle" -exec cp -R {} "$APP_RESOURCES/" \;
 find "$BUILD_DIR" -maxdepth 1 -type d -name "*.resources" -exec cp -R {} "$APP_BUNDLE/" \;
-find "$BUILD_DIR" -maxdepth 1 -type d -name "*.resources" -exec cp -R {} "$APP_RESOURCES/" \;
 
 cat >"$INFO_PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

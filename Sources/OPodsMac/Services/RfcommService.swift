@@ -29,7 +29,7 @@ enum PodsServiceError: LocalizedError {
     }
 }
 
-final class MacBluetoothService: NSObject, IOBluetoothRFCOMMChannelDelegate, @unchecked Sendable {
+final class RfcommService: NSObject, IOBluetoothRFCOMMChannelDelegate, @unchecked Sendable {
     var onEvent: ((PodsServiceEvent) -> Void)?
 
     private let queue = DispatchQueue(label: "com.kelonl.OPodsMac.bluetooth")
@@ -81,42 +81,42 @@ final class MacBluetoothService: NSObject, IOBluetoothRFCOMMChannelDelegate, @un
     }
 
     func sendAnc(_ mode: AncMode) {
-        let requested = capabilities.isLegacyAnc ? OppoProtocol.legacyAncSwap(mode) : mode
-        send(OppoProtocol.packetAncMode(requested))
+        let requested = capabilities.isLegacyAnc ? OppoProtocol.LegacyAncSwap(mode) : mode
+        send(OppoProtocol.PktAncMode(requested))
     }
 
     func sendSpatialSound(_ enabled: Bool) {
-        send(OppoProtocol.buildFeaturePacket(feature: OppoProtocol.Feature.spatial, enabled: enabled))
+        send(OppoProtocol.BuildFeaturePacket(OppoProtocol.FeatureSpatial, enabled))
     }
 
     func sendSpatialAudio(_ mode: SpatialAudioMode) {
-        send(OppoProtocol.packetSpatialAudio(mode))
+        send(OppoProtocol.PktSpatialAudio(mode))
     }
 
     func sendDualDevice(_ enabled: Bool) {
-        send(OppoProtocol.buildFeaturePacket(feature: OppoProtocol.Feature.dualDevice, enabled: enabled))
+        send(OppoProtocol.BuildFeaturePacket(OppoProtocol.FeatureDualDevice, enabled))
     }
 
     func sendGameMode(_ enabled: Bool, compatible: Bool) {
-        send(OppoProtocol.buildFeaturePacket(feature: OppoProtocol.Feature.gameMain, enabled: enabled))
+        send(OppoProtocol.BuildFeaturePacket(OppoProtocol.FeatureGameMain, enabled))
         if compatible {
-            send(OppoProtocol.buildFeaturePacket(feature: OppoProtocol.Feature.gameLowLatency, enabled: enabled))
+            send(OppoProtocol.BuildFeaturePacket(OppoProtocol.FeatureGameLL, enabled))
         }
     }
 
     func sendEqPreset(_ name: String, capabilities: DeviceCapabilities) {
         guard let identifier = capabilities.eqPresets[name] else { return }
-        send(OppoProtocol.buildPacket(command: OppoProtocol.Command.setEq, payload: [identifier]))
+        send(OppoProtocol.BuildPacket(OppoProtocol.CmdSetEq, [identifier]))
     }
 
     func refreshMultiConnectInfo() {
-        send(OppoProtocol.packetMultiConnectInfo)
+        send(OppoProtocol.PktMultiConnectInfo)
     }
 
     func operateHandheld(address: String, connect: Bool) {
         let bytes = address.split(separator: ":").compactMap { UInt8($0, radix: 16) }
         guard bytes.count == 6 else { return }
-        send(OppoProtocol.buildPacket(command: OppoProtocol.Command.operateHandheld, payload: [connect ? 0x01 : 0x00] + bytes))
+        send(OppoProtocol.BuildPacket(OppoProtocol.CmdOperateHandheld, [connect ? 0x01 : 0x00] + bytes))
     }
 
     private func connectLocked(to candidate: BluetoothDeviceCandidate?) throws {
@@ -124,7 +124,7 @@ final class MacBluetoothService: NSObject, IOBluetoothRFCOMMChannelDelegate, @un
 
         let selectedDevice = try resolveDevice(candidate)
         let deviceName = selectedDevice.nameOrAddress ?? selectedDevice.addressString ?? "OPPO earbuds"
-        capabilities = DeviceCatalog.shared.detect(deviceName: deviceName)
+        capabilities = DeviceCapabilities.Detect(deviceName)
 
         var failures: [String] = []
         for channelID in channelIDs(for: selectedDevice) {
@@ -187,21 +187,21 @@ final class MacBluetoothService: NSObject, IOBluetoothRFCOMMChannelDelegate, @un
     }
 
     private func oppoSppUUID() -> IOBluetoothSDPUUID? {
-        let data = Data(OppoProtocol.oppoSppUUIDBytes)
+        let data = Data(OppoProtocol.OppoSppUuidBytes)
         return data.withUnsafeBytes { pointer -> IOBluetoothSDPUUID? in
             guard let baseAddress = pointer.baseAddress else { return nil }
-            return IOBluetoothSDPUUID(bytes: baseAddress, length: OppoProtocol.oppoSppUUIDBytes.count)
+            return IOBluetoothSDPUUID(bytes: baseAddress, length: OppoProtocol.OppoSppUuidBytes.count)
         }
     }
 
     private func sendStartupQueriesLocked() {
         let startupPackets = [
-            OppoProtocol.packetBatchQuery,
-            OppoProtocol.packetBattery,
-            OppoProtocol.packetQueryAnc,
-            OppoProtocol.packetQueryEq,
-            OppoProtocol.packetRegisterNotify,
-            OppoProtocol.packetMultiConnectInfo
+            OppoProtocol.PktBatchQuery,
+            OppoProtocol.PktBattery,
+            OppoProtocol.PktQueryAnc,
+            OppoProtocol.PktQueryEq,
+            OppoProtocol.PktRegisterNotify,
+            OppoProtocol.PktMultiConnectInfo
         ]
 
         for packet in startupPackets {
@@ -231,19 +231,19 @@ final class MacBluetoothService: NSObject, IOBluetoothRFCOMMChannelDelegate, @un
         guard snapshot.connected else { return }
         pollTick += 1
 
-        sendSilentlyLocked(OppoProtocol.packetBattery)
-        sendSilentlyLocked(OppoProtocol.packetQueryAnc)
+        sendSilentlyLocked(OppoProtocol.PktBattery)
+        sendSilentlyLocked(OppoProtocol.PktQueryAnc)
 
         if pollTick % 2 == 0 {
-            sendSilentlyLocked(OppoProtocol.packetBatchQuery)
+            sendSilentlyLocked(OppoProtocol.PktBatchQuery)
         }
 
         if pollTick % 3 == 0 {
-            sendSilentlyLocked(OppoProtocol.packetQueryEq)
+            sendSilentlyLocked(OppoProtocol.PktQueryEq)
         }
 
         if pollTick % 4 == 0 {
-            sendSilentlyLocked(OppoProtocol.packetMultiConnectInfo)
+            sendSilentlyLocked(OppoProtocol.PktMultiConnectInfo)
         }
     }
 

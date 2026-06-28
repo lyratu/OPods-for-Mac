@@ -39,7 +39,7 @@ final class PodsStore: ObservableObject {
     private static let modelOverrideKey = "modelOverride"
     private static let gameModeCompatibleKey = "gameModeCompatible"
 
-    private let service = MacBluetoothService()
+    private let service = RfcommService()
 
     init() {
         selectedModelOverride = UserDefaults.standard.string(forKey: Self.modelOverrideKey)
@@ -54,13 +54,13 @@ final class PodsStore: ObservableObject {
 
     var effectiveCapabilities: DeviceCapabilities {
         if let selectedModelOverride, !selectedModelOverride.isEmpty {
-            return DeviceCatalog.shared.forceModel(selectedModelOverride)
+            return DeviceCapabilities.ForceModel(selectedModelOverride)
         }
         return detectedCapabilities
     }
 
     var modelNames: [String] {
-        DeviceCatalog.shared.modelNames
+        DeviceCapabilities.GetModelNames()
     }
 
     var filteredModelNames: [String] {

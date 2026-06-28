@@ -20,6 +20,18 @@ struct DeviceCapabilities: Equatable {
     var ancModeMap: [AncResponseKey: AncMode] = [:]
 
     static let fallback = DeviceCapabilities()
+
+    static func Detect(_ deviceName: String?) -> DeviceCapabilities {
+        DeviceCatalog.shared.detect(deviceName: deviceName)
+    }
+
+    static func ForceModel(_ modelName: String?) -> DeviceCapabilities {
+        DeviceCatalog.shared.forceModel(modelName)
+    }
+
+    static func GetModelNames() -> [String] {
+        DeviceCatalog.shared.modelNames
+    }
 }
 
 struct DeviceModelEntry: Decodable, Identifiable {
@@ -99,7 +111,7 @@ final class DeviceCatalog {
             return true
         }
         let upper = deviceName.uppercased()
-        return OppoProtocol.supportedBrands.contains { upper.contains($0.uppercased()) }
+        return OppoProtocol.SupportedBrands.contains { upper.contains($0.uppercased()) }
     }
 
     private func capabilities(from entry: DeviceModelEntry, deviceName: String) -> DeviceCapabilities {
