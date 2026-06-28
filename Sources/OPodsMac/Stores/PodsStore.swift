@@ -181,6 +181,10 @@ final class PodsStore: ObservableObject {
         service.refreshMultiConnectInfo()
     }
 
+    func syncNow() {
+        service.refreshNow()
+    }
+
     func operateHandheld(address: String, connect: Bool) {
         service.operateHandheld(address: address, connect: connect)
     }

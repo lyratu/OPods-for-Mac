@@ -32,12 +32,17 @@ enum OppoFrameReducer {
     }
 
     private static func ParseAnc(_ payload: [UInt8], snapshot: inout PodSnapshot, capabilities: DeviceCapabilities) {
-        guard payload.count >= 4 else { return }
-        for index in 0..<(payload.count - 3) {
+        guard payload.count >= 3 else {
+            print("[OPods] ParseAnc skipped: payload too short (\(payload.count) bytes)")
+            return
+        }
+        for index in 0..<(payload.count - 2) {
             guard payload[index] == 0x01, payload[index + 1] == 0x01 else { continue }
-            let key = AncResponseKey(first: payload[index + 2], second: payload[index + 3])
-            let mapped = capabilities.ancModeMap[key]
-                ?? (capabilities.ancModeMap.isEmpty ? OppoProtocol.AncValues[key] : nil)
+            let first = payload[index + 2]
+            let second = index + 3 < payload.count ? payload[index + 3] : 0
+            let key = AncResponseKey(first: first, second: second)
+            let mapped = capabilities.ancModeMap[key] ?? OppoProtocol.AncValues[key]
+            print("[OPods] ANC response key=(\(first), \(second)), mapped=\(mapped?.rawValue ?? "nil")")
             if let mapped, mapped != .unknown {
                 snapshot.ancMode = mapped
             }

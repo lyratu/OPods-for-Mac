@@ -58,6 +58,7 @@ enum OppoProtocol {
 
     static let AncValues: [AncResponseKey: AncMode] = [
         AncResponseKey(first: 8, second: 0): .off,
+        AncResponseKey(first: 1, second: 0): .smart,
         AncResponseKey(first: 2, second: 0): .smart,
         AncResponseKey(first: 0x80, second: 0): .smart,
         AncResponseKey(first: 0x40, second: 0): .light,

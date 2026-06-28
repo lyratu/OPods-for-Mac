@@ -40,6 +40,9 @@ final class RfcommService: NSObject, IOBluetoothRFCOMMChannelDelegate, @unchecke
     private var snapshot = PodSnapshot()
     private var pollTimer: DispatchSourceTimer?
     private var pollTick = 0
+    private var connectedAt = Date.distantPast
+    private var lastEmittedSnapshot = PodSnapshot()
+    private var wokeAt = Date.distantPast
 
     func pairedDevices() -> [BluetoothDeviceCandidate] {
         let devices = IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] ?? []
@@ -112,6 +115,17 @@ final class RfcommService: NSObject, IOBluetoothRFCOMMChannelDelegate, @unchecke
         send(OppoProtocol.PktMultiConnectInfo)
     }
 
+    func refreshNow() {
+        wokeAt = Date()
+        queue.async { [weak self] in
+            guard let self, self.snapshot.connected else { return }
+            self.sendSilentlyLocked(OppoProtocol.PktBattery)
+            self.sendSilentlyLocked(OppoProtocol.PktQueryAnc)
+            self.sendSilentlyLocked(OppoProtocol.PktBatchQuery)
+            self.sendSilentlyLocked(OppoProtocol.PktQueryEq)
+        }
+    }
+
     func operateHandheld(address: String, connect: Bool) {
         let bytes = address.split(separator: ":").compactMap { UInt8($0, radix: 16) }
         guard bytes.count == 6 else { return }
@@ -135,6 +149,8 @@ final class RfcommService: NSObject, IOBluetoothRFCOMMChannelDelegate, @unchecke
                 snapshot = PodSnapshot()
                 snapshot.connected = true
                 snapshot.connectedDeviceName = deviceName
+                connectedAt = Date()
+                lastEmittedSnapshot = snapshot
                 emit(.connected(deviceName: deviceName, capabilities: capabilities, snapshot: snapshot))
                 sendStartupQueriesLocked()
                 startPollingLocked()
@@ -194,7 +210,7 @@ final class RfcommService: NSObject, IOBluetoothRFCOMMChannelDelegate, @unchecke
     }
 
     private func sendStartupQueriesLocked() {
-        let startupPackets = [
+        let startupPackets: [[UInt8]] = [
             OppoProtocol.PktBatchQuery,
             OppoProtocol.PktBattery,
             OppoProtocol.PktQueryAnc,
@@ -203,22 +219,30 @@ final class RfcommService: NSObject, IOBluetoothRFCOMMChannelDelegate, @unchecke
             OppoProtocol.PktMultiConnectInfo
         ]
 
-        for packet in startupPackets {
-            do {
-                try sendLocked(packet)
-            } catch {
-                emit(.error(error.localizedDescription))
+        for (offset, packet) in startupPackets.enumerated() {
+            queue.asyncAfter(deadline: .now() + .milliseconds(80 * offset)) { [weak self] in
+                do {
+                    try self?.sendLocked(packet)
+                } catch {
+                    self?.emit(.error(error.localizedDescription))
+                }
             }
-            Thread.sleep(forTimeInterval: 0.08)
         }
     }
 
     private func startPollingLocked() {
         pollTimer?.cancel()
         pollTick = 0
+        scheduleNextPoll()
+    }
+
+    private func scheduleNextPoll() {
+        let stableElapsed = Date().timeIntervalSince(connectedAt)
+        let wokeElapsed = Date().timeIntervalSince(wokeAt)
+        let interval: TimeInterval = (stableElapsed < 30 || wokeElapsed < 30) ? 5 : 30
 
         let timer = DispatchSource.makeTimerSource(queue: queue)
-        timer.schedule(deadline: .now() + 2, repeating: 5)
+        timer.schedule(deadline: .now() + interval)
         timer.setEventHandler { [weak self] in
             self?.pollLocked()
         }
@@ -229,21 +253,25 @@ final class RfcommService: NSObject, IOBluetoothRFCOMMChannelDelegate, @unchecke
     private func pollLocked() {
         guard snapshot.connected else { return }
         pollTick += 1
+        let elapsed = Date().timeIntervalSince(connectedAt)
+        let isStable = elapsed >= 30
 
         sendSilentlyLocked(OppoProtocol.PktBattery)
         sendSilentlyLocked(OppoProtocol.PktQueryAnc)
 
-        if pollTick % 2 == 0 {
+        if !isStable || pollTick % 2 == 0 {
             sendSilentlyLocked(OppoProtocol.PktBatchQuery)
         }
 
-        if pollTick % 3 == 0 {
+        if !isStable || pollTick % 3 == 0 {
             sendSilentlyLocked(OppoProtocol.PktQueryEq)
         }
 
-        if pollTick % 4 == 0 {
+        if !isStable {
             sendSilentlyLocked(OppoProtocol.PktMultiConnectInfo)
         }
+
+        scheduleNextPoll()
     }
 
     private func send(_ packet: [UInt8]) {
@@ -301,9 +329,11 @@ final class RfcommService: NSObject, IOBluetoothRFCOMMChannelDelegate, @unchecke
         guard let dataPointer, dataLength > 0 else { return }
         let bytes = Array(UnsafeBufferPointer(start: dataPointer.assumingMemoryBound(to: UInt8.self), count: dataLength))
         queue.async {
-            for frame in self.parser.append(bytes) {
+            let frames = self.parser.append(bytes)
+            for frame in frames {
                 OppoFrameReducer.apply(frame, to: &self.snapshot, capabilities: self.capabilities)
             }
+            self.lastEmittedSnapshot = self.snapshot
             self.emit(.snapshot(self.snapshot))
         }
     }

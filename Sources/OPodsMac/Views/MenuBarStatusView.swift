@@ -58,6 +58,12 @@ struct MenuBarStatusView: View {
                 .padding(.vertical, 6)
         }
         .frame(width: 278)
+        .onAppear {
+            store.syncNow()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            store.syncNow()
+        }
     }
 
     // MARK: - Header
@@ -367,6 +373,7 @@ struct MenuBarStatusView: View {
     // MARK: - Helpers
 
     private func showMainWindow() {
+        store.syncNow()
         openWindow(id: "main")
         NSApp.activate(ignoringOtherApps: true)
     }
