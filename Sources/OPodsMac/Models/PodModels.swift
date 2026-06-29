@@ -113,7 +113,7 @@ struct ConnectedDeviceInfo: Identifiable, Equatable {
 
     func statusText(language: AppLanguage) -> String {
         switch connectionState {
-        case 2: isCurrentDevice ? AppStrings.text("connected", language: language) : AppStrings.text("connected", language: language)
+        case 2: AppStrings.text("connected", language: language)
         case 1: AppStrings.text("connecting", language: language)
         default: AppStrings.text("disconnected", language: language)
         }

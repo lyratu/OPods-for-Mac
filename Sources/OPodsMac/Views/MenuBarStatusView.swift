@@ -1,6 +1,24 @@
 import AppKit
 import SwiftUI
 
+struct MenuBarExtraLabel: View {
+    @EnvironmentObject private var store: PodsStore
+
+    var body: some View {
+        Label(title, systemImage: store.snapshot.connected ? "earbuds" : "earbuds.case")
+    }
+
+    private var title: String {
+        guard store.snapshot.connected else { return "OPods" }
+        return "L \(batteryText(for: .left)) R \(batteryText(for: .right))"
+    }
+
+    private func batteryText(for component: PodComponent) -> String {
+        guard let reading = store.snapshot.mergedBattery(for: component) else { return "--%" }
+        return "\(reading.clippedLevel)%"
+    }
+}
+
 struct MenuBarStatusView: View {
     @Environment(\.openWindow) private var openWindow
     @EnvironmentObject private var store: PodsStore
@@ -151,6 +169,10 @@ struct MenuBarStatusView: View {
             Text(reading.map { "\($0.clippedLevel)%" } ?? "--")
                 .font(.system(size: 16, weight: .bold, design: .monospaced))
 
+            ProgressView(value: level)
+                .progressViewStyle(.linear)
+                .tint(.green)
+
             HStack(spacing: 3) {
                 Text(component.title(language: store.language))
                     .font(.system(size: 9))
@@ -164,15 +186,8 @@ struct MenuBarStatusView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
-        .background(
-            GeometryReader { geo in
-                ZStack(alignment: .bottom) {
-                    Color.primary.opacity(0.05)
-                    Color.green.opacity(0.30)
-                        .frame(height: geo.size.height * level)
-                }
-            }
-        )
+        .padding(.horizontal, 8)
+        .background(Color.primary.opacity(0.05))
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 

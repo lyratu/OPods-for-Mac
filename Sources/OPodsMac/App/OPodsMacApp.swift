@@ -5,16 +5,12 @@ import SwiftUI
 struct OPodsMacApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var store = PodsStore()
-    @StateObject private var menuBarController = MenuBarStatusItemController()
 
     var body: some Scene {
         Window("OPods for Mac", id: "main") {
             ContentView()
                 .environmentObject(store)
                 .frame(minWidth: 840, minHeight: 560)
-                .onAppear {
-                    menuBarController.configure(store: store)
-                }
         }
         .commands {
             CommandMenu("Pods") {
@@ -34,6 +30,15 @@ struct OPodsMacApp: App {
                 .keyboardShortcut("d", modifiers: [.command, .shift])
             }
         }
+
+        MenuBarExtra {
+            MenuBarStatusView()
+                .environmentObject(store)
+        } label: {
+            MenuBarExtraLabel()
+                .environmentObject(store)
+        }
+        .menuBarExtraStyle(.window)
     }
 }
 
