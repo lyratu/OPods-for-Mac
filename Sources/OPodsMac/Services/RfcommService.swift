@@ -52,12 +52,15 @@ final class RfcommService: NSObject, IOBluetoothRFCOMMChannelDelegate, @unchecke
             return BluetoothDeviceCandidate(
                 address: address,
                 name: name,
-                likelySupported: DeviceCatalog.shared.likelySupported(deviceName: name)
+                likelySupported: DeviceCatalog.shared.likelySupported(deviceName: name),
+                isSystemConnected: device.isConnected()
             )
         }
         .sorted {
-            if $0.likelySupported != $1.likelySupported {
-                return $0.likelySupported
+            let lhsPriority = deviceListPriority($0)
+            let rhsPriority = deviceListPriority($1)
+            if lhsPriority != rhsPriority {
+                return lhsPriority > rhsPriority
             }
             return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
@@ -149,6 +152,7 @@ final class RfcommService: NSObject, IOBluetoothRFCOMMChannelDelegate, @unchecke
                 snapshot = PodSnapshot()
                 snapshot.connected = true
                 snapshot.connectedDeviceName = deviceName
+                snapshot.connectedDeviceAddress = selectedDevice.addressString ?? ""
                 connectedAt = Date()
                 lastEmittedSnapshot = snapshot
                 emit(.connected(deviceName: deviceName, capabilities: capabilities, snapshot: snapshot))
@@ -173,14 +177,35 @@ final class RfcommService: NSObject, IOBluetoothRFCOMMChannelDelegate, @unchecke
         let devices = IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] ?? []
         guard !devices.isEmpty else { throw PodsServiceError.noPairedDevices }
 
-        if let supported = devices.first(where: { device in
+        let sortedDevices = devices.sorted {
+            let lhs = bluetoothDevicePriority($0)
+            let rhs = bluetoothDevicePriority($1)
+            if lhs != rhs {
+                return lhs > rhs
+            }
+            let lhsName = $0.nameOrAddress ?? $0.addressString ?? ""
+            let rhsName = $1.nameOrAddress ?? $1.addressString ?? ""
+            return lhsName.localizedCaseInsensitiveCompare(rhsName) == .orderedAscending
+        }
+
+        if let supported = sortedDevices.first(where: { device in
             let name = device.nameOrAddress ?? device.addressString ?? ""
             return DeviceCatalog.shared.likelySupported(deviceName: name)
         }) {
             return supported
         }
 
-        return devices[0]
+        return sortedDevices[0]
+    }
+
+    private func deviceListPriority(_ device: BluetoothDeviceCandidate) -> Int {
+        (device.likelySupported ? 2 : 0) + (device.isSystemConnected ? 1 : 0)
+    }
+
+    private func bluetoothDevicePriority(_ device: IOBluetoothDevice) -> Int {
+        let name = device.nameOrAddress ?? device.addressString ?? ""
+        let likelySupported = DeviceCatalog.shared.likelySupported(deviceName: name)
+        return (likelySupported ? 2 : 0) + (device.isConnected() ? 1 : 0)
     }
 
     private func channelIDs(for device: IOBluetoothDevice) -> [BluetoothRFCOMMChannelID] {

@@ -19,18 +19,24 @@ struct DevicesView: View {
 
                 List(store.pairedDevices) { device in
                     HStack {
-                        Image(systemName: device.likelySupported ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(device.likelySupported ? .green : .secondary)
+                        Image(systemName: deviceIconName(for: device))
+                            .foregroundStyle(deviceIconColor(for: device))
+                            .frame(width: 18)
                         VStack(alignment: .leading) {
                             Text(device.name)
-                            Text(device.address)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            HStack(spacing: 8) {
+                                Text(device.address)
+                                    .foregroundStyle(.secondary)
+                                if device.isSystemConnected {
+                                    Label(device.connectionStatusTitle(language: store.language), systemImage: "link")
+                                        .labelStyle(.titleAndIcon)
+                                        .foregroundStyle(.green)
+                                }
+                            }
+                            .font(.caption)
                         }
                         Spacer()
-                        Button(store.text("connect")) {
-                            store.connect(to: device)
-                        }
+                        pairedDeviceAction(for: device)
                     }
                     .padding(.vertical, 4)
                 }
@@ -86,6 +92,46 @@ struct DevicesView: View {
             .padding(20)
             .frame(minWidth: 250, maxWidth: .infinity)
         }
+    }
+
+    @ViewBuilder
+    private func pairedDeviceAction(for device: BluetoothDeviceCandidate) -> some View {
+        if store.isCurrentConnectedDevice(device) {
+            Button(store.text("disconnect")) {
+                store.disconnect()
+            }
+            .controlSize(.small)
+        } else if store.isConnecting(to: device) {
+            Label(store.text("connecting"), systemImage: "clock")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else if device.likelySupported && device.isSystemConnected {
+            Label(store.text("connected"), systemImage: "checkmark.circle.fill")
+                .font(.caption)
+                .foregroundStyle(.green)
+        } else {
+            Button(store.text("connect")) {
+                store.connect(to: device)
+            }
+            .controlSize(.small)
+        }
+    }
+
+    private func deviceIconName(for device: BluetoothDeviceCandidate) -> String {
+        if store.isCurrentConnectedDevice(device) {
+            return "checkmark.circle.fill"
+        }
+        if device.isSystemConnected {
+            return "link.circle.fill"
+        }
+        return device.likelySupported ? "circle" : "minus.circle"
+    }
+
+    private func deviceIconColor(for device: BluetoothDeviceCandidate) -> Color {
+        if store.isCurrentConnectedDevice(device) || device.isSystemConnected {
+            return .green
+        }
+        return device.likelySupported ? .secondary : Color.secondary.opacity(0.55)
     }
 }
 

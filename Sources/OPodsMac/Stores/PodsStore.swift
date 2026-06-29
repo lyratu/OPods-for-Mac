@@ -55,6 +55,8 @@ final class PodsStore: ObservableObject {
     private var spatialSoundUserSetAt = Date.distantPast
     private var dualDeviceUserSetAt = Date.distantPast
     private var eqPresetUserSetAt = Date.distantPast
+    private var connectingDeviceAddress: String?
+    private var bluetoothObservers: [NSObjectProtocol] = []
 
     init() {
         let initialLanguage = AppLanguage(rawValue: UserDefaults.standard.string(forKey: Self.languageKey) ?? "") ?? .english
@@ -67,7 +69,14 @@ final class PodsStore: ObservableObject {
                 self?.handle(event)
             }
         }
+        observeBluetoothConnectionChanges()
         refreshPairedDevices()
+    }
+
+    deinit {
+        for observer in bluetoothObservers {
+            NotificationCenter.default.removeObserver(observer)
+        }
     }
 
     var effectiveCapabilities: DeviceCapabilities {
@@ -112,17 +121,24 @@ final class PodsStore: ObservableObject {
     }
 
     func refreshPairedDevices() {
-        pairedDevices = service.pairedDevices()
+        let devices = refreshPairedDeviceCache()
+        autoConnectToSystemConnectedDeviceIfNeeded(from: devices)
     }
 
     func connectAutomatically() {
+        let devices = refreshPairedDeviceCache()
+        if let connectedDevice = systemConnectedSupportedDevice(in: devices) {
+            connect(to: connectedDevice, automatic: true)
+            return
+        }
         connect(to: nil)
     }
 
-    func connect(to device: BluetoothDeviceCandidate?) {
+    func connect(to device: BluetoothDeviceCandidate?, automatic: Bool = false) {
         phase = .connecting
+        connectingDeviceAddress = device?.address
         if let device {
-            setStatus("status.connectingDevice", argument: device.name)
+            setStatus(automatic ? "status.adoptingConnectedDevice" : "status.connectingDevice", argument: device.name)
         } else {
             setStatus("status.searching")
         }
@@ -131,6 +147,7 @@ final class PodsStore: ObservableObject {
             do {
                 try await service.connect(to: device)
             } catch {
+                connectingDeviceAddress = nil
                 phase = .failed(error.localizedDescription)
                 statusMessage = error.localizedDescription
             }
@@ -138,6 +155,7 @@ final class PodsStore: ObservableObject {
     }
 
     func disconnect() {
+        connectingDeviceAddress = nil
         service.disconnect()
     }
 
@@ -189,12 +207,30 @@ final class PodsStore: ObservableObject {
         service.operateHandheld(address: address, connect: connect)
     }
 
+    func isCurrentConnectedDevice(_ device: BluetoothDeviceCandidate) -> Bool {
+        guard snapshot.connected else { return false }
+        if !snapshot.connectedDeviceAddress.isEmpty {
+            return snapshot.connectedDeviceAddress.caseInsensitiveCompare(device.address) == .orderedSame
+        }
+        return snapshot.connectedDeviceName.localizedCaseInsensitiveCompare(device.name) == .orderedSame
+    }
+
+    func isConnecting(to device: BluetoothDeviceCandidate) -> Bool {
+        guard case .connecting = phase else { return false }
+        if let connectingDeviceAddress {
+            return connectingDeviceAddress.caseInsensitiveCompare(device.address) == .orderedSame
+        }
+        return device.likelySupported
+    }
+
     private func handle(_ event: PodsServiceEvent) {
         switch event {
         case .connected(let deviceName, let capabilities, let snapshot):
+            connectingDeviceAddress = nil
             self.snapshot = snapshot
             detectedCapabilities = capabilities
             phase = .connected
+            _ = refreshPairedDeviceCache()
             let name = capabilities.modelName == "Unknown" ? deviceName : capabilities.modelName
             setStatus("status.connectedDevice", argument: name)
         case .snapshot(let snapshot):
@@ -220,16 +256,20 @@ final class PodsStore: ObservableObject {
             self.snapshot = next
             phase = snapshot.connected ? .connected : .disconnected
         case .disconnected(let reason):
+            connectingDeviceAddress = nil
             snapshot.connected = false
             phase = .disconnected
+            let devices = refreshPairedDeviceCache()
             if let reason {
                 statusMessage = reason
                 statusMessageKey = ""
                 statusMessageArgument = nil
+                autoConnectToSystemConnectedDeviceIfNeeded(from: devices)
             } else {
                 setStatus("status.disconnected")
             }
         case .error(let message):
+            connectingDeviceAddress = nil
             phase = .failed(message)
             statusMessage = message
             statusMessageKey = ""
@@ -256,8 +296,50 @@ final class PodsStore: ObservableObject {
         case "status.connectingDevice":
             let format = language == .chinese ? "正在连接 %@..." : "Connecting to %@..."
             return String(format: format, argument ?? "")
+        case "status.adoptingConnectedDevice":
+            let format = language == .chinese ? "发现已连接的 %@，正在接管控制..." : "Found connected %@. Taking control..."
+            return String(format: format, argument ?? "")
         default:
             return text(key)
         }
+    }
+
+    @discardableResult
+    private func refreshPairedDeviceCache() -> [BluetoothDeviceCandidate] {
+        let devices = service.pairedDevices()
+        pairedDevices = devices
+        return devices
+    }
+
+    private func observeBluetoothConnectionChanges() {
+        let names = [
+            Notification.Name("IOBluetoothDeviceConnected"),
+            Notification.Name("IOBluetoothDeviceDisconnected")
+        ]
+        bluetoothObservers = names.map { name in
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor in
+                    self?.refreshPairedDevices()
+                }
+            }
+        }
+    }
+
+    private func autoConnectToSystemConnectedDeviceIfNeeded(from devices: [BluetoothDeviceCandidate]) {
+        guard shouldStartAutomaticConnection,
+              let device = systemConnectedSupportedDevice(in: devices) else {
+            return
+        }
+        connect(to: device, automatic: true)
+    }
+
+    private var shouldStartAutomaticConnection: Bool {
+        if snapshot.connected { return false }
+        if case .connecting = phase { return false }
+        return true
+    }
+
+    private func systemConnectedSupportedDevice(in devices: [BluetoothDeviceCandidate]) -> BluetoothDeviceCandidate? {
+        devices.first { $0.likelySupported && $0.isSystemConnected }
     }
 }

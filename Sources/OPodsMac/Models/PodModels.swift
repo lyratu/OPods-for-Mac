@@ -137,13 +137,19 @@ struct BluetoothDeviceCandidate: Identifiable, Equatable {
     var address: String
     var name: String
     var likelySupported: Bool
+    var isSystemConnected: Bool
 
     var id: String { address }
+
+    func connectionStatusTitle(language: AppLanguage) -> String {
+        AppStrings.text(isSystemConnected ? "connected" : "disconnected", language: language)
+    }
 }
 
 struct PodSnapshot: Equatable {
     var connected = false
     var connectedDeviceName = ""
+    var connectedDeviceAddress = ""
     var battery: [PodComponent: BatteryReading] = [:]
     var wearing: [PodComponent: WearingStatus] = [:]
     var ancMode: AncMode = .unknown
