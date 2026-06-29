@@ -31,6 +31,7 @@ enum PodsServiceError: LocalizedError {
 
 final class RfcommService: NSObject, IOBluetoothRFCOMMChannelDelegate, @unchecked Sendable {
     var onEvent: ((PodsServiceEvent) -> Void)?
+    var isPowerSaving = false
 
     private let queue = DispatchQueue(label: "com.kelonl.OPodsMac.bluetooth")
     private let parser = OppoFrameParser()
@@ -278,7 +279,12 @@ final class RfcommService: NSObject, IOBluetoothRFCOMMChannelDelegate, @unchecke
     private func scheduleNextPoll() {
         let stableElapsed = Date().timeIntervalSince(connectedAt)
         let wokeElapsed = Date().timeIntervalSince(wokeAt)
-        let interval: TimeInterval = (stableElapsed < 30 || wokeElapsed < 30) ? 5 : 30
+        let interval: TimeInterval
+        if isPowerSaving {
+            interval = wokeElapsed < 30 ? 5 : 60
+        } else {
+            interval = (stableElapsed < 30 || wokeElapsed < 30) ? 5 : 30
+        }
 
         let timer = DispatchSource.makeTimerSource(queue: queue)
         timer.schedule(deadline: .now() + interval)
@@ -293,21 +299,27 @@ final class RfcommService: NSObject, IOBluetoothRFCOMMChannelDelegate, @unchecke
         guard snapshot.connected else { return }
         pollTick += 1
         let elapsed = Date().timeIntervalSince(connectedAt)
+        let wokeElapsed = Date().timeIntervalSince(wokeAt)
         let isStable = elapsed >= 30
+        let fastSync = !isStable || wokeElapsed < 30
 
-        sendSilentlyLocked(OppoProtocol.PktBattery)
-        sendSilentlyLocked(OppoProtocol.PktQueryAnc)
+        if isPowerSaving && isStable {
+            sendSilentlyLocked(OppoProtocol.PktBattery)
+        } else {
+            sendSilentlyLocked(OppoProtocol.PktBattery)
+            sendSilentlyLocked(OppoProtocol.PktQueryAnc)
 
-        if !isStable || pollTick % 2 == 0 {
-            sendSilentlyLocked(OppoProtocol.PktBatchQuery)
-        }
+            if fastSync || pollTick % 2 == 0 {
+                sendSilentlyLocked(OppoProtocol.PktBatchQuery)
+            }
 
-        if !isStable || pollTick % 3 == 0 {
-            sendSilentlyLocked(OppoProtocol.PktQueryEq)
-        }
+            if fastSync || pollTick % 3 == 0 {
+                sendSilentlyLocked(OppoProtocol.PktQueryEq)
+            }
 
-        if !isStable {
-            sendSilentlyLocked(OppoProtocol.PktMultiConnectInfo)
+            if fastSync {
+                sendSilentlyLocked(OppoProtocol.PktMultiConnectInfo)
+            }
         }
 
         scheduleNextPoll()

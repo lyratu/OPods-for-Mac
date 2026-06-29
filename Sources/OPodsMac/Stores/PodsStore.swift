@@ -42,9 +42,16 @@ final class PodsStore: ObservableObject {
             UserDefaults.standard.set(gameModeCompatible, forKey: Self.gameModeCompatibleKey)
         }
     }
+    @Published var isPowerSaving: Bool {
+        didSet {
+            UserDefaults.standard.set(isPowerSaving, forKey: Self.powerSavingKey)
+            service.isPowerSaving = isPowerSaving
+        }
+    }
 
     private static let modelOverrideKey = "modelOverride"
     private static let gameModeCompatibleKey = "gameModeCompatible"
+    private static let powerSavingKey = "powerSaving"
     private static let languageKey = "appLanguage"
 
     private let service = RfcommService()
@@ -66,6 +73,7 @@ final class PodsStore: ObservableObject {
         statusMessage = AppStrings.text("status.initial", language: initialLanguage)
         selectedModelOverride = UserDefaults.standard.string(forKey: Self.modelOverrideKey)
         gameModeCompatible = UserDefaults.standard.bool(forKey: Self.gameModeCompatibleKey)
+        isPowerSaving = UserDefaults.standard.bool(forKey: Self.powerSavingKey)
         service.onEvent = { [weak self] event in
             Task { @MainActor in
                 self?.handle(event)
