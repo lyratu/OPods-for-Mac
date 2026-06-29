@@ -1,0 +1,163 @@
+{
+  "description": "Feature and mode display metadata used by OPods for Mac. Device availability still comes from DeviceModels.json; this file owns visible feature names, mode names, display order, and fallback naming policy.",
+  "controlGroups": {
+    "noise": {
+      "en": "Noise Control",
+      "zhCN": "降噪控制"
+    },
+    "sound": {
+      "en": "Sound",
+      "zhCN": "声音"
+    },
+    "connection": {
+      "en": "Connection",
+      "zhCN": "连接"
+    }
+  },
+  "features": {
+    "noiseControl": {
+      "en": "Noise Control",
+      "zhCN": "降噪控制"
+    },
+    "ancLevel": {
+      "en": "ANC level",
+      "zhCN": "降噪深度"
+    },
+    "ancMode": {
+      "en": "ANC mode",
+      "zhCN": "降噪模式"
+    },
+    "adaptiveAnc": {
+      "en": "Adaptive ANC",
+      "zhCN": "自适应降噪"
+    },
+    "spatialSound": {
+      "en": "Spatial sound",
+      "zhCN": "空间音效"
+    },
+    "spatialAudio": {
+      "en": "Spatial audio",
+      "zhCN": "空间音频"
+    },
+    "spatialAudioModes": {
+      "en": "Spatial audio modes",
+      "zhCN": "空间音频模式"
+    },
+    "dualDevice": {
+      "en": "Dual-device connection",
+      "zhCN": "双设备连接"
+    },
+    "eqPreset": {
+      "en": "EQ preset",
+      "zhCN": "EQ 预设"
+    },
+    "gameMode": {
+      "en": "Game mode",
+      "zhCN": "游戏模式"
+    }
+  },
+  "capabilityItems": [
+    {
+      "feature": "noiseControl",
+      "capability": "ancAvailable"
+    },
+    {
+      "feature": "ancLevel",
+      "capability": "ancSubModes"
+    },
+    {
+      "feature": "adaptiveAnc",
+      "capability": "adaptiveAnc"
+    },
+    {
+      "feature": "spatialSound",
+      "capability": "spatialSound"
+    },
+    {
+      "feature": "spatialAudioModes",
+      "capability": "spatialAudio"
+    },
+    {
+      "feature": "dualDevice",
+      "capability": "dualDevice"
+    },
+    {
+      "feature": "eqPreset",
+      "capability": "eqPreset"
+    },
+    {
+      "feature": "gameMode",
+      "capability": "gameMode"
+    }
+  ],
+  "anc": {
+    "mainOrder": ["off", "adaptive", "transparency", "smart"],
+    "subModeFallbackOrder": ["smart", "light", "medium", "deep"],
+    "modeTypes": {
+      "1": "off",
+      "2": "transparency",
+      "3": "deep",
+      "4": "light",
+      "5": "smart",
+      "7": "smart",
+      "8": "medium",
+      "10": "adaptive"
+    },
+    "modes": {
+      "off": {
+        "en": "Off",
+        "zhCN": "关闭"
+      },
+      "smart": {
+        "en": "Noise Cancelling",
+        "zhCN": "降噪"
+      },
+      "light": {
+        "en": "Light",
+        "zhCN": "轻度"
+      },
+      "medium": {
+        "en": "Medium",
+        "zhCN": "中度"
+      },
+      "deep": {
+        "en": "Deep",
+        "zhCN": "深度"
+      },
+      "adaptive": {
+        "en": "Adaptive",
+        "zhCN": "自适应"
+      },
+      "transparency": {
+        "en": "Transparency",
+        "zhCN": "通透"
+      },
+      "unknown": {
+        "en": "Unknown",
+        "zhCN": "未知"
+      }
+    }
+  },
+  "spatialAudio": {
+    "modes": {
+      "off": {
+        "en": "Off",
+        "zhCN": "关闭"
+      },
+      "fixed": {
+        "en": "Fixed",
+        "zhCN": "固定"
+      },
+      "tracking": {
+        "en": "Head Tracking",
+        "zhCN": "头部追踪"
+      }
+    }
+  },
+  "eq": {
+    "modeCollections": ["equalizerMode", "equalizerModeCompat", "equalizerModeByVersion"],
+    "includeVersionGatedModesWhenVersionUnknown": false,
+    "fallbackName": "默认",
+    "fallbackIndexedNameFormat": "模式 %d"
+  }
+}

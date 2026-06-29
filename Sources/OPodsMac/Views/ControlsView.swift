@@ -5,12 +5,12 @@ struct ControlsView: View {
 
     var body: some View {
         Form {
-            Section(store.text("noiseControl")) {
+            Section(store.controlGroupTitle("noise")) {
                 if ancModes.isEmpty {
                     Text(store.text("anc.unsupported"))
                         .foregroundStyle(.secondary)
                 } else {
-                    Picker(store.text("anc.mode"), selection: Binding(
+                    Picker(store.featureTitle("ancMode"), selection: Binding(
                         get: {
                             ancModes.contains(store.snapshot.ancMode)
                                 ? store.snapshot.ancMode
@@ -26,16 +26,16 @@ struct ControlsView: View {
                 }
             }
 
-            Section(store.text("sound")) {
+            Section(store.controlGroupTitle("sound")) {
                 if store.effectiveCapabilities.hasSpatialSound {
-                    Toggle(store.text("spatialSound"), isOn: Binding(
+                    Toggle(store.featureTitle("spatialSound"), isOn: Binding(
                         get: { store.snapshot.spatialSound },
                         set: { store.sendSpatialSound($0) }
                     ))
                 }
 
                 if store.effectiveCapabilities.hasSpatialAudio {
-                    Picker(store.text("spatialAudio"), selection: Binding(
+                    Picker(store.featureTitle("spatialAudio"), selection: Binding(
                         get: { store.snapshot.spatialMode },
                         set: { store.sendSpatialAudio($0) }
                     )) {
@@ -46,24 +46,24 @@ struct ControlsView: View {
                     .pickerStyle(.segmented)
                 }
 
-                Picker(store.text("eqPreset"), selection: Binding(
+                Picker(store.featureTitle("eqPreset"), selection: Binding(
                     get: { store.snapshot.eqPreset.isEmpty ? firstEqName : store.snapshot.eqPreset },
                     set: { store.sendEqPreset($0) }
                 )) {
-                    ForEach(eqNames, id: \.self) { name in
-                        Text(name).tag(name)
+                    ForEach(eqOptions) { option in
+                        Text(option.name).tag(option.name)
                     }
                 }
             }
 
-            Section(store.text("connection")) {
-                Toggle(store.text("gameMode"), isOn: Binding(
+            Section(store.controlGroupTitle("connection")) {
+                Toggle(store.featureTitle("gameMode"), isOn: Binding(
                     get: { store.snapshot.gameMode },
                     set: { store.sendGameMode($0) }
                 ))
 
                 if store.effectiveCapabilities.hasDualDevice {
-                    Toggle(store.text("dualDevice"), isOn: Binding(
+                    Toggle(store.featureTitle("dualDevice"), isOn: Binding(
                         get: { store.snapshot.dualDevice },
                         set: { store.sendDualDevice($0) }
                     ))
@@ -78,11 +78,11 @@ struct ControlsView: View {
         store.availableAncControlModes
     }
 
-    private var eqNames: [String] {
-        store.effectiveCapabilities.eqPresets.keys.sorted()
+    private var eqOptions: [EqPresetOption] {
+        store.effectiveCapabilities.eqOptions
     }
 
     private var firstEqName: String {
-        eqNames.first ?? "Default"
+        eqOptions.first?.name ?? store.defaultEqName()
     }
 }

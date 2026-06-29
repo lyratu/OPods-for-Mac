@@ -180,7 +180,7 @@ struct MenuBarStatusView: View {
 
     private var ancSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(store.text("noiseControl"))
+            Text(store.featureTitle("noiseControl"))
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.secondary)
 
@@ -227,7 +227,7 @@ struct MenuBarStatusView: View {
         HStack(spacing: 5) {
             featureChip(
                 icon: "gamecontroller",
-                title: store.text("gameMode"),
+                title: store.featureTitle("gameMode"),
                 isOn: store.snapshot.gameMode,
                 action: { store.sendGameMode(!store.snapshot.gameMode) }
             )
@@ -235,7 +235,7 @@ struct MenuBarStatusView: View {
             if store.effectiveCapabilities.hasSpatialSound {
                 featureChip(
                     icon: "hifispeaker",
-                    title: store.text("spatialSound"),
+                    title: store.featureTitle("spatialSound"),
                     isOn: store.snapshot.spatialSound,
                     action: { store.sendSpatialSound(!store.snapshot.spatialSound) }
                 )
@@ -244,7 +244,7 @@ struct MenuBarStatusView: View {
             if store.effectiveCapabilities.hasDualDevice {
                 featureChip(
                     icon: "rectangle.connected.to.line.below",
-                    title: store.text("dualDevice"),
+                    title: store.featureTitle("dualDevice"),
                     isOn: store.snapshot.dualDevice,
                     action: { store.sendDualDevice(!store.snapshot.dualDevice) }
                 )
@@ -289,7 +289,7 @@ struct MenuBarStatusView: View {
 
     private var eqSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(store.text("eqPreset"))
+            Text(store.featureTitle("eqPreset"))
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.secondary)
 
@@ -298,25 +298,25 @@ struct MenuBarStatusView: View {
     }
 
     private var eqPillsGrid: some View {
-        let names = store.effectiveCapabilities.eqPresets.keys.sorted()
+        let options = store.effectiveCapabilities.eqOptions
         let current = store.snapshot.eqPreset.isEmpty
-            ? (names.first ?? "Default")
+            ? (options.first?.name ?? store.defaultEqName())
             : store.snapshot.eqPreset
 
         return HStack(spacing: 5) {
-            ForEach(names, id: \.self) { name in
+            ForEach(options) { option in
                 Button {
-                    store.sendEqPreset(name)
+                    store.sendEqPreset(option.name)
                 } label: {
-                    Text(name)
+                    Text(option.name)
                         .font(.system(size: 11, weight: .medium))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
                         .padding(.horizontal, 8)
-                        .background(current == name
+                        .background(current == option.name
                             ? Color.accentColor
                             : Color.primary.opacity(0.08))
-                        .foregroundStyle(current == name
+                        .foregroundStyle(current == option.name
                             ? .white
                             : .primary)
                         .clipShape(RoundedRectangle(cornerRadius: 7))
@@ -358,7 +358,7 @@ struct MenuBarStatusView: View {
                 Image(systemName: "headphones")
                     .frame(width: 16)
                     .foregroundStyle(.secondary)
-                Text(store.text("spatialAudio"))
+                Text(store.featureTitle("spatialAudio"))
                     .font(.system(size: 12))
             }
         }
@@ -412,4 +412,3 @@ private struct MenuActionRow: View {
         }
     }
 }
-

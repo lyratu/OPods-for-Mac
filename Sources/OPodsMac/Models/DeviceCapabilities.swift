@@ -5,6 +5,13 @@ struct AncResponseKey: Hashable {
     var second: UInt8
 }
 
+struct EqPresetOption: Identifiable, Equatable {
+    var protocolIndex: UInt8
+    var name: String
+
+    var id: UInt8 { protocolIndex }
+}
+
 struct DeviceCapabilities: Equatable {
     var deviceName = ""
     var modelName = "Unknown"
@@ -14,12 +21,20 @@ struct DeviceCapabilities: Equatable {
     var hasDualDevice = false
     var hasAdaptiveAnc = false
     var hasAncSubModes = false
+    var hasEqPreset = false
     var isLegacyAnc = false
     var hasGameMode = true
     var availableAncMainModes: [AncMode] = []
     var availableAncSubModes: [AncMode] = []
-    var eqPresets: [String: UInt8] = ["Default": 0]
-    var eqNames: [UInt8: String] = [0: "Default"]
+    var eqOptions: [EqPresetOption] = [
+        EqPresetOption(protocolIndex: 0, name: FeatureDisplayCatalog.shared.defaultEqName())
+    ]
+    var eqPresets: [String: UInt8] = [
+        FeatureDisplayCatalog.shared.defaultEqName(): 0
+    ]
+    var eqNames: [UInt8: String] = [
+        0: FeatureDisplayCatalog.shared.defaultEqName()
+    ]
     var ancModeMap: [AncResponseKey: AncMode] = [:]
 
     static let fallback = DeviceCapabilities()
@@ -51,6 +66,8 @@ struct DeviceFunction: Decodable {
     let multiDevicesConnect: Int?
     let noiseReductionMode: [NoiseReductionMode]?
     let equalizerMode: [ModeIndexEntry]?
+    let equalizerModeCompat: [ModeIndexEntry]?
+    let equalizerModeByVersion: [ModeIndexEntry]?
 }
 
 struct NoiseReductionMode: Decodable {
@@ -62,6 +79,7 @@ struct NoiseReductionMode: Decodable {
 struct ModeIndexEntry: Decodable {
     let modeType: Int?
     let protocolIndex: Int?
+    let order: Int?
 }
 
 struct EqNameDocument: Decodable {
@@ -73,8 +91,10 @@ final class DeviceCatalog {
 
     private(set) var models: [DeviceModelEntry] = []
     private(set) var eqModeNames: [String: String] = [:]
+    private let featureDisplay: FeatureDisplayCatalog
 
     init(bundle: Bundle = .module) {
+        featureDisplay = FeatureDisplayCatalog(bundle: bundle)
         models = Self.loadModels(bundle: bundle)
         models.sort { $0.name.count > $1.name.count }
         eqModeNames = Self.loadEqNames(bundle: bundle)
@@ -148,95 +168,135 @@ final class DeviceCatalog {
             }
         }
 
-        let eqNames = buildEqNames(from: function.equalizerMode)
-        caps.eqNames = eqNames
-        caps.eqPresets = Dictionary(uniqueKeysWithValues: eqNames.map { ($0.value, $0.key) })
+        let eqEntries = eqModeEntries(from: function)
+        let eqOptions = buildEqOptions(from: eqEntries)
+        caps.hasEqPreset = !eqEntries.isEmpty
+        caps.eqOptions = eqOptions
+        caps.eqNames = Dictionary(uniqueKeysWithValues: eqOptions.map { ($0.protocolIndex, $0.name) })
+        caps.eqPresets = buildEqPresetLookup(from: eqOptions)
         return caps
     }
 
     private func buildAncMainModes(from modes: [NoiseReductionMode]) -> [AncMode] {
         var available = Set<AncMode>()
         for mode in modes {
-            switch mode.modeType {
-            case 1:
-                available.insert(.off)
-            case 2:
-                available.insert(.transparency)
-            case 5:
-                available.insert(.smart)
-            case 10:
-                available.insert(.adaptive)
-            case 3, 4, 7:
-                available.insert(.smart)
-            default:
-                break
+            guard let modeType = mode.modeType,
+                  let ancMode = mainAncMode(forModeType: modeType) else {
+                continue
             }
+            available.insert(ancMode)
         }
-        return [.off, .adaptive, .transparency, .smart].filter { available.contains($0) }
+        return featureDisplay.orderedAncMainModes(available)
     }
 
     private func buildAncSubModes(from modes: [NoiseReductionMode]) -> [AncMode] {
-        let subNames: [AncMode] = [.smart, .light, .medium, .deep]
         guard let noiseCancelling = modes.first(where: { $0.modeType == 5 }),
               let children = noiseCancelling.childrenMode,
               !children.isEmpty else {
             return []
         }
-        return Array(subNames.prefix(children.count))
+        return featureDisplay.orderedAncSubModes(from: children)
     }
 
-    private func buildEqNames(from modes: [ModeIndexEntry]?) -> [UInt8: String] {
-        guard let modes, !modes.isEmpty else {
-            return [0: "Default"]
+    private func mainAncMode(forModeType modeType: Int) -> AncMode? {
+        guard let mode = featureDisplay.ancMode(forModeType: modeType) else { return nil }
+        switch mode {
+        case .light, .medium, .deep:
+            return .smart
+        default:
+            return mode
+        }
+    }
+
+    private func eqModeEntries(from function: DeviceFunction) -> [ModeIndexEntry] {
+        var entries: [ModeIndexEntry] = []
+        for collection in featureDisplay.eqModeCollections {
+            switch collection {
+            case "equalizerMode":
+                entries.append(contentsOf: function.equalizerMode ?? [])
+            case "equalizerModeCompat":
+                entries.append(contentsOf: function.equalizerModeCompat ?? [])
+            case "equalizerModeByVersion":
+                if featureDisplay.includeVersionGatedEqModesWhenVersionUnknown {
+                    entries.append(contentsOf: function.equalizerModeByVersion ?? [])
+                }
+            default:
+                break
+            }
+        }
+        return orderedEqEntries(entries)
+    }
+
+    private func orderedEqEntries(_ entries: [ModeIndexEntry]) -> [ModeIndexEntry] {
+        guard entries.contains(where: { $0.order != nil }) else { return entries }
+        return entries.enumerated()
+            .sorted { left, right in
+                let leftOrder = left.element.order ?? left.offset + 1
+                let rightOrder = right.element.order ?? right.offset + 1
+                if leftOrder != rightOrder {
+                    return leftOrder < rightOrder
+                }
+                return left.offset < right.offset
+            }
+            .map(\.element)
+    }
+
+    private func buildEqOptions(from modes: [ModeIndexEntry]) -> [EqPresetOption] {
+        guard !modes.isEmpty else {
+            return defaultEqOptions()
         }
 
-        var names: [UInt8: String] = [:]
+        var options: [EqPresetOption] = []
+        var seenIndexes = Set<UInt8>()
         for mode in modes {
             guard let protocolIndex = mode.protocolIndex else { continue }
             let index = UInt8(clamping: protocolIndex)
-            var displayName = index < 10 ? "Mode \(index)" : "M\(index)"
-            if let modeType = mode.modeType,
-               let mapped = eqModeNames[String(modeType)],
-               !mapped.isEmpty {
-                displayName = mapped
-            }
-            names[index] = displayName
+            guard seenIndexes.insert(index).inserted else { continue }
+            options.append(EqPresetOption(
+                protocolIndex: index,
+                name: eqDisplayName(for: mode, protocolIndex: index)
+            ))
         }
-        return names.isEmpty ? [0: "Default"] : names
+        return options.isEmpty ? defaultEqOptions() : options
+    }
+
+    private func eqDisplayName(for mode: ModeIndexEntry, protocolIndex: UInt8) -> String {
+        if let modeType = mode.modeType,
+           let mapped = eqModeNames[String(modeType)],
+           !mapped.isEmpty {
+            return mapped
+        }
+        return featureDisplay.eqFallbackName(protocolIndex: protocolIndex, modeType: mode.modeType)
+    }
+
+    private func defaultEqOptions() -> [EqPresetOption] {
+        [EqPresetOption(protocolIndex: 0, name: featureDisplay.defaultEqName())]
+    }
+
+    private func buildEqPresetLookup(from options: [EqPresetOption]) -> [String: UInt8] {
+        var presets: [String: UInt8] = [:]
+        for option in options where presets[option.name] == nil {
+            presets[option.name] = option.protocolIndex
+        }
+        return presets
     }
 
     private func buildAncMap(from modes: [NoiseReductionMode]) -> [AncResponseKey: AncMode] {
-        let adaptiveNames: [AncMode] = [.smart, .light, .medium, .deep]
         var map: [AncResponseKey: AncMode] = [:]
 
         for mode in modes {
             guard let type = mode.modeType else { continue }
             guard let children = mode.childrenMode, !children.isEmpty else {
                 if let index = mode.protocolIndex {
-                    let mode: AncMode
-                    switch type {
-                    case 1:  mode = .off
-                    case 2:  mode = .transparency
-                    case 10: mode = .adaptive
-                    default: mode = .smart
-                    }
-                    map[AncResponseKey(first: UInt8(clamping: type), second: UInt8(clamping: index))] = mode
+                    map[AncResponseKey(first: UInt8(clamping: type), second: UInt8(clamping: index))] = featureDisplay.ancMode(forModeType: type) ?? .smart
                 }
                 continue
             }
 
-            for (childIndex, child) in children.enumerated() {
+            for child in children {
                 guard let protocolIndex = child.protocolIndex else { continue }
                 let key = AncResponseKey(first: UInt8(clamping: type), second: UInt8(clamping: protocolIndex))
-                if type == 1 {
-                    map[key] = .off
-                } else if type == 2 {
-                    map[key] = .transparency
-                } else if adaptiveNames.indices.contains(childIndex) {
-                    map[key] = adaptiveNames[childIndex]
-                } else {
-                    map[key] = .unknown
-                }
+                map[key] = child.modeType.flatMap(featureDisplay.ancMode(forModeType:)) ?? .unknown
             }
         }
         return map

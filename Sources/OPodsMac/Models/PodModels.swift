@@ -80,16 +80,7 @@ enum AncMode: String, CaseIterable, Identifiable, Equatable, Hashable {
     }
 
     func title(language: AppLanguage) -> String {
-        switch self {
-        case .off: AppStrings.text("anc.off", language: language)
-        case .smart: AppStrings.text("anc.smart", language: language)
-        case .light: AppStrings.text("anc.light", language: language)
-        case .medium: AppStrings.text("anc.medium", language: language)
-        case .deep: AppStrings.text("anc.deep", language: language)
-        case .adaptive: AppStrings.text("anc.adaptive", language: language)
-        case .transparency: AppStrings.text("anc.transparency", language: language)
-        case .unknown: AppStrings.text("unknown", language: language)
-        }
+        FeatureDisplayCatalog.shared.ancModeTitle(self, language: language)
     }
 }
 
@@ -101,11 +92,7 @@ enum SpatialAudioMode: String, CaseIterable, Identifiable, Equatable {
     var id: String { rawValue }
 
     func title(language: AppLanguage) -> String {
-        switch self {
-        case .off: AppStrings.text("spatial.off", language: language)
-        case .fixed: AppStrings.text("spatial.fixed", language: language)
-        case .tracking: AppStrings.text("spatial.tracking", language: language)
-        }
+        FeatureDisplayCatalog.shared.spatialAudioTitle(self, language: language)
     }
 }
 

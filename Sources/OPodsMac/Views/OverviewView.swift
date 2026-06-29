@@ -160,12 +160,9 @@ struct CapabilitiesOverview: View {
                 .font(.headline)
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
-                CapabilityBadge(title: store.text("noiseControl"), enabled: !store.effectiveCapabilities.availableAncMainModes.isEmpty)
-                CapabilityBadge(title: store.text("anc.level"), enabled: store.effectiveCapabilities.hasAncSubModes)
-                CapabilityBadge(title: store.text("adaptiveAnc"), enabled: store.effectiveCapabilities.hasAdaptiveAnc)
-                CapabilityBadge(title: store.text("spatialSound"), enabled: store.effectiveCapabilities.hasSpatialSound)
-                CapabilityBadge(title: store.text("spatialAudioModes"), enabled: store.effectiveCapabilities.hasSpatialAudio)
-                CapabilityBadge(title: store.text("dualDevice"), enabled: store.effectiveCapabilities.hasDualDevice)
+                ForEach(store.capabilityDisplayItems) { item in
+                    CapabilityBadge(title: item.title, enabled: item.enabled)
+                }
             }
         }
     }

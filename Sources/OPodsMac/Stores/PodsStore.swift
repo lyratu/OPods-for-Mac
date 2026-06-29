@@ -48,6 +48,7 @@ final class PodsStore: ObservableObject {
     private static let languageKey = "appLanguage"
 
     private let service = RfcommService()
+    private let featureDisplay = FeatureDisplayCatalog.shared
     private var statusMessageKey = "status.initial"
     private var statusMessageArgument: String?
     private var gameModeUserSetAt = Date.distantPast
@@ -117,8 +118,24 @@ final class PodsStore: ObservableObject {
         return parts.isEmpty ? "OPods" : parts.joined(separator: " ")
     }
 
+    var capabilityDisplayItems: [CapabilityDisplayItem] {
+        featureDisplay.capabilityItems(for: effectiveCapabilities, language: language)
+    }
+
     func text(_ key: String) -> String {
         AppStrings.text(key, language: language)
+    }
+
+    func controlGroupTitle(_ id: String) -> String {
+        featureDisplay.controlGroupTitle(id, language: language)
+    }
+
+    func featureTitle(_ id: String) -> String {
+        featureDisplay.featureTitle(id, language: language)
+    }
+
+    func defaultEqName() -> String {
+        featureDisplay.defaultEqName()
     }
 
     func refreshPairedDevices() {
