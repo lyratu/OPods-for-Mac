@@ -35,7 +35,11 @@ struct OPodsMacApp: App {
             MenuBarStatusView()
                 .environmentObject(store)
         } label: {
-            Label(store.menuBarTitle, systemImage: store.snapshot.connected ? "earbuds" : "earbuds.case")
+            HStack(spacing: 4) {
+                Image(systemName: store.snapshot.connected ? "earbuds" : "earbuds.case")
+                Text(store.menuBarTitle)
+                    .font(.system(size: 11))
+            }
         }
         .menuBarExtraStyle(.window)
     }
