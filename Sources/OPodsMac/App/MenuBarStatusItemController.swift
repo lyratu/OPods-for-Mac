@@ -62,16 +62,6 @@ final class MenuBarStatusItemController: NSObject, ObservableObject {
         nextPopover.contentSize = contentSize
         nextPopover.contentViewController = controller
 
-        if let popover {
-            NotificationCenter.default.removeObserver(self, name: NSPopover.didCloseNotification, object: popover)
-        }
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(popoverDidClose),
-            name: NSPopover.didCloseNotification,
-            object: nextPopover
-        )
-
         popover = nextPopover
         hostingController = controller
     }
@@ -192,17 +182,11 @@ final class MenuBarStatusItemController: NSObject, ObservableObject {
 
         if popover.isShown {
             popover.performClose(nil)
-            statusButton.highlight(false)
             return
         }
 
         store?.syncNow()
-        statusButton.highlight(true)
         popover.show(relativeTo: statusButton.bounds, of: statusButton, preferredEdge: .minY)
-    }
-
-    @objc private func popoverDidClose() {
-        statusButton?.highlight(false)
     }
 }
 
@@ -213,7 +197,7 @@ private final class CenteredStatusButtonCell: NSButtonCell {
 
         let centeredHeight: CGFloat = 20
         titleRect.size.height = centeredHeight
-        titleRect.origin.y = floor((rect.height - centeredHeight) / 2)
+        titleRect.origin.y = max(0, floor((rect.height - centeredHeight) / 2) - 2)
         return titleRect
     }
 
