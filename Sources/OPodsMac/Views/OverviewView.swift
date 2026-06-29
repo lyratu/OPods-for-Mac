@@ -10,7 +10,6 @@ struct OverviewView: View {
                 BatteryOverview()
                 WearingOverview()
                 CapabilitiesOverview()
-                QuickControlsView()
             }
             .padding(24)
             .frame(maxWidth: 900, alignment: .leading)
@@ -126,34 +125,6 @@ struct WearingOverview: View {
                     .padding(.horizontal, 10)
                     .background(Color(nsColor: .controlBackgroundColor))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
-                }
-            }
-        }
-    }
-}
-
-struct QuickControlsView: View {
-    @EnvironmentObject private var store: PodsStore
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(store.text("quickControls"))
-                .font(.headline)
-
-            if store.availableAncControlModes.isEmpty {
-                Text(store.text("anc.unsupported"))
-                    .foregroundStyle(.secondary)
-            } else {
-                HStack(spacing: 10) {
-                    ForEach(store.availableAncControlModes.prefix(4).map { $0 }) { mode in
-                        Button {
-                            store.sendAnc(mode)
-                        } label: {
-                            Label(mode.title(language: store.language), systemImage: store.snapshot.ancMode == mode ? "checkmark.circle.fill" : "circle")
-                                .frame(minWidth: 86)
-                        }
-                        .buttonStyle(.bordered)
-                    }
                 }
             }
         }
