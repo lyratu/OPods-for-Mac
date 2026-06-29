@@ -93,7 +93,7 @@ struct MenuBarStatusView: View {
             Spacer()
 
             Button {
-                store.refreshPairedDevices()
+                store.syncNow()
             } label: {
                 Image(systemName: "arrow.clockwise")
                     .font(.system(size: 15, weight: .medium))
@@ -335,6 +335,10 @@ struct MenuBarStatusView: View {
                 Divider().padding(.vertical, 3)
             }
 
+            powerSavingToggle
+
+            Divider().padding(.vertical, 3)
+
             actionButton(icon: "rectangle.on.rectangle", title: store.text("showMainWindow")) {
                 showMainWindow()
             }
@@ -343,6 +347,25 @@ struct MenuBarStatusView: View {
                 NSApp.terminate(nil)
             }
         }
+    }
+
+    private var powerSavingToggle: some View {
+        Button {
+            store.isPowerSaving.toggle()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: store.isPowerSaving ? "bolt.slash.circle.fill" : "bolt.circle")
+                    .frame(width: 16)
+                    .foregroundStyle(store.isPowerSaving ? .green : .secondary)
+                Text("省电模式")
+                    .font(.system(size: 12))
+                Spacer()
+            }
+            .contentShape(Rectangle())
+            .padding(.vertical, 5)
+            .padding(.horizontal, 4)
+        }
+        .buttonStyle(.plain)
     }
 
     private var spatialPicker: some View {
