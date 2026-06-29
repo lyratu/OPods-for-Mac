@@ -115,11 +115,11 @@ struct MenuBarStatusView: View {
             }
 
             if store.snapshot.connected {
-                headerIconButton(icon: "xmark.circle.fill", help: store.text("disconnect")) {
+                headerIconButton(icon: "xmark", help: store.text("disconnect")) {
                     store.disconnect()
                 }
             } else {
-                headerIconButton(icon: "link.circle.fill", help: store.text("connect")) {
+                headerIconButton(icon: "link", help: store.text("connect")) {
                     store.connectAutomatically()
                 }
             }
@@ -345,7 +345,7 @@ struct MenuBarStatusView: View {
                 Divider().padding(.vertical, 3)
             }
 
-            actionButton(icon: store.isPowerSaving ? "bolt.slash.circle.fill" : "bolt.circle", title: powerSavingTitle) {
+            actionButton(icon: store.isPowerSaving ? "bolt.slash" : "bolt", title: powerSavingTitle) {
                 store.isPowerSaving.toggle()
             }
 
@@ -387,7 +387,7 @@ struct MenuBarStatusView: View {
     }
 
     private var powerSavingTitle: String {
-        "省电模式：\(store.isPowerSaving ? "打开" : "关闭")"
+        store.isPowerSaving ? "关闭省电模式" : "打开省电模式"
     }
 
     // MARK: - Helpers
