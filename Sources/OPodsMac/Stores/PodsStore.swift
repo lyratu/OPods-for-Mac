@@ -56,6 +56,7 @@ final class PodsStore: ObservableObject {
     private var dualDeviceUserSetAt = Date.distantPast
     private var eqPresetUserSetAt = Date.distantPast
     private var connectingDeviceAddress: String?
+    private var autoConnectSuppressedAddresses = Set<String>()
     private var bluetoothObservers: [NSObjectProtocol] = []
 
     init() {
@@ -127,14 +128,23 @@ final class PodsStore: ObservableObject {
 
     func connectAutomatically() {
         let devices = refreshPairedDeviceCache()
-        if let connectedDevice = systemConnectedSupportedDevice(in: devices) {
-            connect(to: connectedDevice, automatic: true)
+        if let preferredDevice = preferredConnectionDevice(in: devices) {
+            allowAutoConnect(for: preferredDevice.address)
+            connect(to: preferredDevice, automatic: preferredDevice.isSystemConnected)
             return
         }
+        autoConnectSuppressedAddresses.removeAll()
         connect(to: nil)
     }
 
     func connect(to device: BluetoothDeviceCandidate?, automatic: Bool = false) {
+        if !automatic {
+            if let address = device?.address {
+                allowAutoConnect(for: address)
+            } else {
+                autoConnectSuppressedAddresses.removeAll()
+            }
+        }
         phase = .connecting
         connectingDeviceAddress = device?.address
         if let device {
@@ -155,6 +165,7 @@ final class PodsStore: ObservableObject {
     }
 
     func disconnect() {
+        suppressAutoConnectForCurrentDevice()
         connectingDeviceAddress = nil
         service.disconnect()
     }
@@ -220,7 +231,20 @@ final class PodsStore: ObservableObject {
         if let connectingDeviceAddress {
             return connectingDeviceAddress.caseInsensitiveCompare(device.address) == .orderedSame
         }
-        return device.likelySupported
+        return false
+    }
+
+    func connectionState(for device: BluetoothDeviceCandidate) -> PairedDeviceConnectionState {
+        if isCurrentConnectedDevice(device) {
+            return .controlled
+        }
+        if isConnecting(to: device) {
+            return .connecting
+        }
+        if device.isSystemConnected {
+            return device.likelySupported ? .systemConnected : .unsupported
+        }
+        return device.likelySupported ? .paired : .unsupported
     }
 
     private func handle(_ event: PodsServiceEvent) {
@@ -330,6 +354,7 @@ final class PodsStore: ObservableObject {
               let device = systemConnectedSupportedDevice(in: devices) else {
             return
         }
+        guard !isAutoConnectSuppressed(for: device.address) else { return }
         connect(to: device, automatic: true)
     }
 
@@ -341,5 +366,30 @@ final class PodsStore: ObservableObject {
 
     private func systemConnectedSupportedDevice(in devices: [BluetoothDeviceCandidate]) -> BluetoothDeviceCandidate? {
         devices.first { $0.likelySupported && $0.isSystemConnected }
+    }
+
+    private func preferredConnectionDevice(in devices: [BluetoothDeviceCandidate]) -> BluetoothDeviceCandidate? {
+        systemConnectedSupportedDevice(in: devices) ?? devices.first { $0.likelySupported }
+    }
+
+    private func suppressAutoConnectForCurrentDevice() {
+        if !snapshot.connectedDeviceAddress.isEmpty {
+            autoConnectSuppressedAddresses.insert(normalizedAddress(snapshot.connectedDeviceAddress))
+        }
+        if let connectingDeviceAddress {
+            autoConnectSuppressedAddresses.insert(normalizedAddress(connectingDeviceAddress))
+        }
+    }
+
+    private func allowAutoConnect(for address: String) {
+        autoConnectSuppressedAddresses.remove(normalizedAddress(address))
+    }
+
+    private func isAutoConnectSuppressed(for address: String) -> Bool {
+        autoConnectSuppressedAddresses.contains(normalizedAddress(address))
+    }
+
+    private func normalizedAddress(_ address: String) -> String {
+        address.uppercased()
     }
 }

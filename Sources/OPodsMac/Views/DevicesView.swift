@@ -18,25 +18,24 @@ struct DevicesView: View {
                 }
 
                 List(store.pairedDevices) { device in
+                    let state = store.connectionState(for: device)
                     HStack {
-                        Image(systemName: deviceIconName(for: device))
-                            .foregroundStyle(deviceIconColor(for: device))
+                        Image(systemName: deviceIconName(for: state))
+                            .foregroundStyle(deviceIconColor(for: state))
                             .frame(width: 18)
                         VStack(alignment: .leading) {
                             Text(device.name)
                             HStack(spacing: 8) {
                                 Text(device.address)
                                     .foregroundStyle(.secondary)
-                                if device.isSystemConnected {
-                                    Label(device.connectionStatusTitle(language: store.language), systemImage: "link")
-                                        .labelStyle(.titleAndIcon)
-                                        .foregroundStyle(.green)
-                                }
+                                Label(state.title(language: store.language), systemImage: statusIconName(for: state))
+                                    .labelStyle(.titleAndIcon)
+                                    .foregroundStyle(statusColor(for: state))
                             }
                             .font(.caption)
                         }
                         Spacer()
-                        pairedDeviceAction(for: device)
+                        pairedDeviceAction(for: device, state: state)
                     }
                     .padding(.vertical, 4)
                 }
@@ -95,43 +94,69 @@ struct DevicesView: View {
     }
 
     @ViewBuilder
-    private func pairedDeviceAction(for device: BluetoothDeviceCandidate) -> some View {
-        if store.isCurrentConnectedDevice(device) {
+    private func pairedDeviceAction(for device: BluetoothDeviceCandidate, state: PairedDeviceConnectionState) -> some View {
+        switch state {
+        case .controlled:
             Button(store.text("disconnect")) {
                 store.disconnect()
             }
             .controlSize(.small)
-        } else if store.isConnecting(to: device) {
+        case .connecting:
             Label(store.text("connecting"), systemImage: "clock")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-        } else if device.likelySupported && device.isSystemConnected {
-            Label(store.text("connected"), systemImage: "checkmark.circle.fill")
-                .font(.caption)
-                .foregroundStyle(.green)
-        } else {
+        case .systemConnected:
+            Button(store.text("takeControl")) {
+                store.connect(to: device, automatic: true)
+            }
+            .controlSize(.small)
+        case .paired:
             Button(store.text("connect")) {
                 store.connect(to: device)
             }
             .controlSize(.small)
+        case .unsupported:
+            Label(store.text("unsupportedDevice"), systemImage: "minus.circle")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
-    private func deviceIconName(for device: BluetoothDeviceCandidate) -> String {
-        if store.isCurrentConnectedDevice(device) {
-            return "checkmark.circle.fill"
+    private func deviceIconName(for state: PairedDeviceConnectionState) -> String {
+        switch state {
+        case .controlled: "checkmark.circle.fill"
+        case .connecting: "clock"
+        case .systemConnected: "link.circle.fill"
+        case .paired: "circle"
+        case .unsupported: "minus.circle"
         }
-        if device.isSystemConnected {
-            return "link.circle.fill"
-        }
-        return device.likelySupported ? "circle" : "minus.circle"
     }
 
-    private func deviceIconColor(for device: BluetoothDeviceCandidate) -> Color {
-        if store.isCurrentConnectedDevice(device) || device.isSystemConnected {
-            return .green
+    private func deviceIconColor(for state: PairedDeviceConnectionState) -> Color {
+        switch state {
+        case .controlled, .systemConnected: .green
+        case .connecting: .orange
+        case .paired: .secondary
+        case .unsupported: Color.secondary.opacity(0.55)
         }
-        return device.likelySupported ? .secondary : Color.secondary.opacity(0.55)
+    }
+
+    private func statusIconName(for state: PairedDeviceConnectionState) -> String {
+        switch state {
+        case .controlled: "checkmark.circle.fill"
+        case .connecting: "clock"
+        case .systemConnected: "link"
+        case .paired: "checkmark"
+        case .unsupported: "minus.circle"
+        }
+    }
+
+    private func statusColor(for state: PairedDeviceConnectionState) -> Color {
+        switch state {
+        case .controlled, .systemConnected: .green
+        case .connecting: .orange
+        case .paired, .unsupported: .secondary
+        }
     }
 }
 

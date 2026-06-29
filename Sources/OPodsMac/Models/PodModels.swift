@@ -140,9 +140,23 @@ struct BluetoothDeviceCandidate: Identifiable, Equatable {
     var isSystemConnected: Bool
 
     var id: String { address }
+}
 
-    func connectionStatusTitle(language: AppLanguage) -> String {
-        AppStrings.text(isSystemConnected ? "connected" : "disconnected", language: language)
+enum PairedDeviceConnectionState: Equatable {
+    case controlled
+    case connecting
+    case systemConnected
+    case paired
+    case unsupported
+
+    func title(language: AppLanguage) -> String {
+        switch self {
+        case .controlled: AppStrings.text("controlledByApp", language: language)
+        case .connecting: AppStrings.text("connecting", language: language)
+        case .systemConnected: AppStrings.text("bluetoothConnected", language: language)
+        case .paired: AppStrings.text("paired", language: language)
+        case .unsupported: AppStrings.text("unsupportedDevice", language: language)
+        }
     }
 }
 

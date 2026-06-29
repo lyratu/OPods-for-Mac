@@ -43,6 +43,7 @@ final class RfcommService: NSObject, IOBluetoothRFCOMMChannelDelegate, @unchecke
     private var connectedAt = Date.distantPast
     private var lastEmittedSnapshot = PodSnapshot()
     private var wokeAt = Date.distantPast
+    private let rfcommRetryDelays: [TimeInterval] = [0, 0.8, 1.6]
 
     func pairedDevices() -> [BluetoothDeviceCandidate] {
         let devices = IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] ?? []
@@ -143,24 +144,37 @@ final class RfcommService: NSObject, IOBluetoothRFCOMMChannelDelegate, @unchecke
         capabilities = DeviceCapabilities.Detect(deviceName)
 
         var failures: [String] = []
-        for channelID in channelIDs(for: selectedDevice) {
-            var openedChannel: IOBluetoothRFCOMMChannel?
-            let result = selectedDevice.openRFCOMMChannelSync(&openedChannel, withChannelID: channelID, delegate: self)
-            if result == kIOReturnSuccess, let openedChannel {
-                device = selectedDevice
-                channel = openedChannel
-                snapshot = PodSnapshot()
-                snapshot.connected = true
-                snapshot.connectedDeviceName = deviceName
-                snapshot.connectedDeviceAddress = selectedDevice.addressString ?? ""
-                connectedAt = Date()
-                lastEmittedSnapshot = snapshot
-                emit(.connected(deviceName: deviceName, capabilities: capabilities, snapshot: snapshot))
-                sendStartupQueriesLocked()
-                startPollingLocked()
-                return
+        for (attempt, delay) in rfcommRetryDelays.enumerated() {
+            if delay > 0 {
+                Thread.sleep(forTimeInterval: delay)
             }
-            failures.append("channel \(channelID): \(result)")
+
+            if !selectedDevice.isConnected() {
+                _ = selectedDevice.openConnection()
+                Thread.sleep(forTimeInterval: 0.25)
+            }
+
+            var attemptFailures: [String] = []
+            for channelID in channelIDs(for: selectedDevice) {
+                var openedChannel: IOBluetoothRFCOMMChannel?
+                let result = selectedDevice.openRFCOMMChannelSync(&openedChannel, withChannelID: channelID, delegate: self)
+                if result == kIOReturnSuccess, let openedChannel {
+                    device = selectedDevice
+                    channel = openedChannel
+                    snapshot = PodSnapshot()
+                    snapshot.connected = true
+                    snapshot.connectedDeviceName = deviceName
+                    snapshot.connectedDeviceAddress = selectedDevice.addressString ?? ""
+                    connectedAt = Date()
+                    lastEmittedSnapshot = snapshot
+                    emit(.connected(deviceName: deviceName, capabilities: capabilities, snapshot: snapshot))
+                    sendStartupQueriesLocked()
+                    startPollingLocked()
+                    return
+                }
+                attemptFailures.append("attempt \(attempt + 1) channel \(channelID): \(result)")
+            }
+            failures = attemptFailures
         }
 
         throw PodsServiceError.rfcommOpenFailed(failures)
