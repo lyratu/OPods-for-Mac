@@ -110,36 +110,31 @@ struct MenuBarStatusView: View {
 
             Spacer()
 
-            Button {
+            headerIconButton(icon: "arrow.clockwise", help: store.text("refreshDevices")) {
                 store.syncNow()
-            } label: {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(.secondary)
             }
-            .buttonStyle(.plain)
-            .help(store.text("refreshDevices"))
 
             if store.snapshot.connected {
-                Button {
+                headerIconButton(icon: "xmark.circle.fill", help: store.text("disconnect")) {
                     store.disconnect()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 18))
-                        .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.plain)
             } else {
-                Button {
+                headerIconButton(icon: "link.circle.fill", help: store.text("connect")) {
                     store.connectAutomatically()
-                } label: {
-                    Image(systemName: "link.circle.fill")
-                        .font(.system(size: 18))
-                        .foregroundStyle(.blue)
                 }
-                .buttonStyle(.plain)
             }
         }
+    }
+
+    private func headerIconButton(icon: String, help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 17, weight: .medium))
+                .frame(width: 22, height: 22)
+                .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.plain)
+        .help(help)
     }
 
     private var headerTitle: String {
@@ -350,7 +345,9 @@ struct MenuBarStatusView: View {
                 Divider().padding(.vertical, 3)
             }
 
-            powerSavingToggle
+            actionButton(icon: store.isPowerSaving ? "bolt.slash.circle.fill" : "bolt.circle", title: powerSavingTitle) {
+                store.isPowerSaving.toggle()
+            }
 
             Divider().padding(.vertical, 3)
 
@@ -362,25 +359,6 @@ struct MenuBarStatusView: View {
                 NSApp.terminate(nil)
             }
         }
-    }
-
-    private var powerSavingToggle: some View {
-        Button {
-            store.isPowerSaving.toggle()
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: store.isPowerSaving ? "bolt.slash.circle.fill" : "bolt.circle")
-                    .frame(width: 16)
-                    .foregroundStyle(store.isPowerSaving ? .green : .secondary)
-                Text("省电模式")
-                    .font(.system(size: 12))
-                Spacer()
-            }
-            .contentShape(Rectangle())
-            .padding(.vertical, 5)
-            .padding(.horizontal, 4)
-        }
-        .buttonStyle(.plain)
     }
 
     private var spatialPicker: some View {
@@ -408,6 +386,10 @@ struct MenuBarStatusView: View {
         MenuActionRow(icon: icon, title: title, action: action)
     }
 
+    private var powerSavingTitle: String {
+        "省电模式：\(store.isPowerSaving ? "打开" : "关闭")"
+    }
+
     // MARK: - Helpers
 
     private func showMainWindow() {
@@ -430,6 +412,7 @@ private struct MenuActionRow: View {
         Button(action: action) {
             HStack(spacing: 8) {
                 Image(systemName: icon)
+                    .font(.system(size: 13, weight: .medium))
                     .frame(width: 16)
                     .foregroundStyle(.secondary)
                 Text(title)
