@@ -117,15 +117,6 @@ final class PodsStore: ObservableObject {
         return mainModes + caps.availableAncSubModes
     }
 
-    var menuBarTitle: String {
-        guard snapshot.connected else { return "OPods" }
-        let parts = [PodComponent.left, .right, .case].compactMap { component -> String? in
-            guard let reading = snapshot.mergedBattery(for: component) else { return nil }
-            return "\(component.rawValue)\(reading.clippedLevel)"
-        }
-        return parts.isEmpty ? "OPods" : parts.joined(separator: " ")
-    }
-
     var capabilityDisplayItems: [CapabilityDisplayItem] {
         featureDisplay.capabilityItems(for: effectiveCapabilities, language: language)
     }
