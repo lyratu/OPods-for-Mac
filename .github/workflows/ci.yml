@@ -18,7 +18,7 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 20
     env:
-      CLANG_MODULE_CACHE_PATH: ${{ runner.temp }}/opods-clang-cache
+      CLANG_MODULE_CACHE_PATH: /private/tmp/opods-clang-cache
 
     steps:
       - name: Check out repository
