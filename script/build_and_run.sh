@@ -4,6 +4,8 @@ set -euo pipefail
 MODE="${1:-run}"
 APP_NAME="OPodsMac"
 BUNDLE_ID="com.kelonl.OPodsMac"
+APP_VERSION="1.0.0"
+APP_BUILD="1"
 MIN_SYSTEM_VERSION="13.0"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -14,6 +16,7 @@ APP_MACOS="$APP_CONTENTS/MacOS"
 APP_RESOURCES="$APP_CONTENTS/Resources"
 APP_BINARY="$APP_MACOS/$APP_NAME"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
+APP_ICON_SOURCE="$ROOT_DIR/Sources/OPodsMac/Resources/AppIcon.icns"
 
 export CLANG_MODULE_CACHE_PATH="${CLANG_MODULE_CACHE_PATH:-/private/tmp/opods-clang-cache}"
 
@@ -27,6 +30,7 @@ rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_MACOS" "$APP_RESOURCES"
 cp "$BUILD_BINARY" "$APP_BINARY"
 chmod +x "$APP_BINARY"
+cp "$APP_ICON_SOURCE" "$APP_RESOURCES/AppIcon.icns"
 
 find "$BUILD_DIR" -maxdepth 1 -type d -name "*.bundle" -exec cp -R {} "$APP_BUNDLE/" \;
 find "$BUILD_DIR" -maxdepth 1 -type d -name "*.resources" -exec cp -R {} "$APP_BUNDLE/" \;
@@ -40,10 +44,16 @@ cat >"$INFO_PLIST" <<PLIST
   <string>$APP_NAME</string>
   <key>CFBundleIdentifier</key>
   <string>$BUNDLE_ID</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
   <key>CFBundleName</key>
   <string>OPods for Mac</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>$APP_VERSION</string>
+  <key>CFBundleVersion</key>
+  <string>$APP_BUILD</string>
   <key>LSMinimumSystemVersion</key>
   <string>$MIN_SYSTEM_VERSION</string>
   <key>NSBluetoothAlwaysUsageDescription</key>
