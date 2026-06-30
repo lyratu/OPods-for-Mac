@@ -15,7 +15,7 @@ concurrency:
 jobs:
   build:
     name: Build Daily Package
-    runs-on: macos-latest
+    runs-on: macos-15
     timeout-minutes: 20
     env:
       CLANG_MODULE_CACHE_PATH: /private/tmp/opods-clang-cache
@@ -48,7 +48,7 @@ jobs:
     name: Refresh Daily Release
     needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: macos-latest
+    runs-on: macos-15
     timeout-minutes: 10
     permissions:
       contents: write
