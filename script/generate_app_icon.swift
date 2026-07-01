@@ -2,21 +2,21 @@ import AppKit
 import Foundation
 
 let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-let source = URL(fileURLWithPath: CommandLine.arguments.dropFirst().first ?? "script/icon-sources/Untitled2.icon/Assets/AppIcon.png", relativeTo: root)
+let source = URL(fileURLWithPath: CommandLine.arguments.dropFirst().first ?? "script/icon-sources/Untitled1-iOS-Default-1024@1x.png", relativeTo: root)
 let output = URL(fileURLWithPath: CommandLine.arguments.dropFirst(2).first ?? "Sources/OPodsMac/Resources/AppIcon.icns", relativeTo: root)
-let iconset = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("opods-app-icon.iconset", isDirectory: true)
 
 let entries = [
-    (16, 1, "icon_16x16.png"),
-    (16, 2, "icon_16x16@2x.png"),
-    (32, 1, "icon_32x32.png"),
-    (32, 2, "icon_32x32@2x.png"),
-    (128, 1, "icon_128x128.png"),
-    (128, 2, "icon_128x128@2x.png"),
-    (256, 1, "icon_256x256.png"),
-    (256, 2, "icon_256x256@2x.png"),
-    (512, 1, "icon_512x512.png"),
-    (512, 2, "icon_512x512@2x.png")
+    (16, "icp4"),
+    (32, "icp5"),
+    (32, "ic11"),
+    (64, "icp6"),
+    (64, "ic12"),
+    (128, "ic07"),
+    (256, "ic08"),
+    (256, "ic13"),
+    (512, "ic09"),
+    (512, "ic14"),
+    (1024, "ic10")
 ]
 
 guard let image = NSImage(contentsOf: source) else {
@@ -24,11 +24,12 @@ guard let image = NSImage(contentsOf: source) else {
     exit(1)
 }
 
-try? FileManager.default.removeItem(at: iconset)
-try FileManager.default.createDirectory(at: iconset, withIntermediateDirectories: true)
+func appendUInt32(_ value: UInt32, to data: inout Data) {
+    var bigEndianValue = value.bigEndian
+    withUnsafeBytes(of: &bigEndianValue) { data.append(contentsOf: $0) }
+}
 
-for entry in entries {
-    let pixels = entry.0 * entry.1
+func pngData(size pixels: Int) -> Data? {
     guard let bitmap = NSBitmapImageRep(
         bitmapDataPlanes: nil,
         pixelsWide: pixels,
@@ -40,10 +41,7 @@ for entry in entries {
         colorSpaceName: .deviceRGB,
         bytesPerRow: 0,
         bitsPerPixel: 0
-    ) else {
-        fputs("Cannot create \(entry.2)\n", stderr)
-        exit(1)
-    }
+    ) else { return nil }
 
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
@@ -51,19 +49,22 @@ for entry in entries {
     image.draw(in: NSRect(x: 0, y: 0, width: pixels, height: pixels), from: .zero, operation: .copy, fraction: 1)
     NSGraphicsContext.restoreGraphicsState()
 
-    guard let png = bitmap.representation(using: .png, properties: [:]) else {
-        fputs("Cannot encode \(entry.2)\n", stderr)
+    return bitmap.representation(using: .png, properties: [:])
+}
+
+var blocks = Data()
+
+for entry in entries {
+    guard let type = entry.1.data(using: .ascii), let png = pngData(size: entry.0) else {
+        fputs("Cannot encode \(entry.1)\n", stderr)
         exit(1)
     }
-    try png.write(to: iconset.appendingPathComponent(entry.2))
+    blocks.append(type)
+    appendUInt32(UInt32(png.count + 8), to: &blocks)
+    blocks.append(png)
 }
 
-let iconutil = Process()
-iconutil.executableURL = URL(fileURLWithPath: "/usr/bin/iconutil")
-iconutil.arguments = ["-c", "icns", "-o", output.path, iconset.path]
-try iconutil.run()
-iconutil.waitUntilExit()
-
-if iconutil.terminationStatus != 0 {
-    exit(iconutil.terminationStatus)
-}
+var icns = Data("icns".utf8)
+appendUInt32(UInt32(blocks.count + 8), to: &icns)
+icns.append(blocks)
+try icns.write(to: output)
