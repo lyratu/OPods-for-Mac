@@ -10,6 +10,12 @@ The app keeps the reverse-engineered OPPO RFCOMM protocol shape and device capab
 - Device capability detection from `DeviceModels.json`
 - Battery, wear detection, ANC, spatial sound/audio, game mode, dual-device, EQ, and multi-device packet parsing
 
+
+<img width="1060" height="725" alt="截屏2026-07-14 10 48 11" src="https://github.com/user-attachments/assets/1fab6989-a5d8-4753-8a71-1341bdac8c8c" />
+<img width="1060" height="725" alt="截屏2026-07-14 10 49 52" src="https://github.com/user-attachments/assets/d3117eaa-4232-4b57-9a7e-1b390ca87da4" />
+<img width="324" height="486" alt="截屏2026-07-14 10 50 31" src="https://github.com/user-attachments/assets/5a88a2a6-8125-4307-9820-b5640828ea33" />
+
+
 ## Build and Run
 
 ```bash
