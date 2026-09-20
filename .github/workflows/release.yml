@@ -18,9 +18,6 @@ jobs:
       - name: Build app bundle
         run: ./script/build_and_run.sh --package
 
-      - name: Ad-hoc codesign
-        run: codesign --force --deep -s - dist/OPodsMac.app
-
       - name: Zip app bundle
         run: |
           cd dist
